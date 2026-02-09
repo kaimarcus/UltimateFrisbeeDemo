@@ -1,0 +1,26 @@
+{
+    "[plaintext]": {
+        "editor.wordWrap": "on",
+        "editor.fontSize": 14,
+        "editor.lineHeight": 1.6
+    },
+    "workbench.colorCustomizations": {
+        "tab.activeBorder": "#0d9488",
+        "tab.activeBorderTop": "#0d9488",
+        "tab.activeBackground": "#134e4a",
+        "tab.activeForeground": "#ccfbf1",
+        "tab.border": "#0f766e",
+        "editorGroup.border": "#0d9488",
+        "editorGroupHeader.tabsBorder": "#0d9488",
+        "focusBorder": "#0d9488",
+        "panel.border": "#0d9488",
+        "sideBar.border": "#0d9488",
+        "activityBar.border": "#0d9488",
+        "statusBar.border": "#0d9488",
+        "editorGroupHeader.border": "#0d9488",
+        "sash.hoverBorder": "#0d9488",
+        "titleBar.border": "#0d9488"
+    },
+    "window.titleBarStyle": "custom",
+    "workbench.editor.showTabs": "multiple"
+}

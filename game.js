@@ -72,12 +72,7 @@ class UltimateGame {
             isDecelerating: false, // Flag to track if currently decelerating for direction change
             color: '#3b82f6',
             hasDisc: false,
-            isDefender: true,
-            reactionDelay: 0.3, // 300ms reaction time
-            timeSinceLastUpdate: 0,
-            lastKnownOffensiveX: 55,
-            lastKnownOffensiveY: 20,
-            verticalOffset: -1 // Maintain 1 yard offset (negative = toward top of field)
+            isDefender: true
         });
     }
     
@@ -93,89 +88,8 @@ class UltimateGame {
     }
     
     update(deltaTime) {
-        // Find the offensive player (for defender to track)
-        const offensivePlayer = this.players.find(p => !p.isDefender);
-        
         // Update player positions (even when not running, for smooth movement)
         this.players.forEach(player => {
-            // Defender AI: track the offensive player with reaction delay
-            if (player.isDefender && offensivePlayer && !this.trainingMode) {
-                // Accumulate time since last update
-                player.timeSinceLastUpdate += deltaTime;
-                
-                // Update defender's knowledge of offensive player position after reaction delay
-                if (player.timeSinceLastUpdate >= player.reactionDelay) {
-                    player.lastKnownOffensiveX = offensivePlayer.x;
-                    player.lastKnownOffensiveY = offensivePlayer.y;
-                    player.timeSinceLastUpdate = 0;
-                    
-                    let targetX, targetY;
-                    
-                    if (this.useLearnedBehavior && this.trainingExamples.length >= 3) {
-                        // Use learned behavior from training examples
-                        const predicted = this.predictDefensivePosition(offensivePlayer.x, offensivePlayer.y);
-                        targetX = predicted.x;
-                        targetY = predicted.y;
-                    } else {
-                        // Use rule-based AI (original behavior)
-                        // Define strategic defensive boundaries
-                        const leftEndZone = this.field.endZoneDepth; // 20 yards
-                        const rightEndZone = this.field.endZoneDepth + this.field.fieldLength; // 90 yards
-                        const anchorLine = leftEndZone + 15; // 15 yards into playing field from left goal line (35 yards from left edge)
-                        const centerY = this.field.fieldWidth / 2; // 20 yards (center of field)
-                        const maxSidelineDistance = 15; // Don't chase more than 15 yards from center
-                        
-                        // Set target based on where offense is going, but constrained to defensive zone
-                        if (offensivePlayer.targetX !== null && offensivePlayer.targetY !== null) {
-                            // Offense has a target - consider intercepting but stay in defensive zone
-                            targetX = offensivePlayer.targetX;
-                            targetY = offensivePlayer.targetY + player.verticalOffset;
-                        } else {
-                            // Offense has no target - maintain offset from current position
-                            targetX = player.lastKnownOffensiveX;
-                            targetY = player.lastKnownOffensiveY + player.verticalOffset;
-                        }
-                        
-                        // Apply strategic constraints to keep defender in good position
-                        
-                        // 1. Don't chase into endzones - pull back toward anchor line
-                        if (targetX < leftEndZone) {
-                            // Offense going into left endzone - pull back but allow some pursuit
-                            targetX = Math.max(targetX, leftEndZone + 5); // Stay at least 5 yards into playing field
-                        } else if (targetX > rightEndZone) {
-                            // Offense going into right endzone - don't pursue past goal line
-                            targetX = rightEndZone - 2; // Stay 2 yards from goal line
-                        } else if (targetX < anchorLine) {
-                            // Offense is between goal line and anchor line - bias toward anchor but pursue more
-                            // Interpolate between offense position and anchor line (more balanced)
-                            targetX = targetX * 0.5 + anchorLine * 0.5;
-                        }
-                        
-                        // 2. Don't chase all the way to sidelines - stay toward center
-                        // Pull defender position toward center if offense goes wide
-                        const distanceFromCenter = Math.abs(targetY - centerY);
-                        if (distanceFromCenter > maxSidelineDistance) {
-                            // Too far from center - pull back toward center
-                            if (targetY > centerY) {
-                                // Offense going toward bottom sideline
-                                targetY = centerY + maxSidelineDistance;
-                            } else {
-                                // Offense going toward top sideline
-                                targetY = centerY - maxSidelineDistance;
-                            }
-                        }
-                    }
-                    
-                    // Set the constrained target
-                    player.targetX = targetX;
-                    player.targetY = targetY;
-                    
-                    // Keep target within field bounds (safety check)
-                    player.targetX = Math.max(0, Math.min(this.field.totalLength, player.targetX));
-                    player.targetY = Math.max(0, Math.min(this.field.fieldWidth, player.targetY));
-                }
-            }
-            
             // Check if player has a target to move toward
             if (player.targetX !== null && player.targetY !== null) {
                 const dx = player.targetX - player.x;
@@ -209,7 +123,7 @@ class UltimateGame {
                     player.previousTargetY = player.targetY;
                 }
                 
-                // If close enough to target, stop (defenders keep tracking)
+                // If close enough to target, stop
                 if (distance < 0.5) {
                     player.x = player.targetX;
                     player.y = player.targetY;
@@ -217,11 +131,8 @@ class UltimateGame {
                     player.vy = 0;
                     player.currentSpeed = 0;
                     player.isDecelerating = false;
-                    // Don't clear target for defenders - they keep tracking
-                    if (!player.isDefender) {
-                        player.targetX = null;
-                        player.targetY = null;
-                    }
+                    player.targetX = null;
+                    player.targetY = null;
                 } else if (distance > 0.1) {
                     // Calculate desired direction
                     const dirX = dx / distance;
@@ -387,6 +298,22 @@ class UltimateGame {
                 this.field.drawLine(example.offenseX, example.offenseY, 
                                    example.defenseX, example.defenseY, 
                                    '#ffffff40', 1, true);
+            });
+        }
+        
+        // Draw mark lines (defender marking offensive player with disc)
+        const playerWithDisc = this.players.find(p => p.hasDisc);
+        if (playerWithDisc) {
+            const defenders = this.players.filter(p => p.isDefender);
+            defenders.forEach(defender => {
+                // Draw line from defender to player with disc
+                this.field.drawLine(
+                    defender.x, defender.y,
+                    playerWithDisc.x, playerWithDisc.y,
+                    '#ffffff',
+                    2,
+                    false
+                );
             });
         }
         

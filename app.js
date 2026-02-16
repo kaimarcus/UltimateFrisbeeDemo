@@ -29,6 +29,7 @@ function init() {
     
     console.log('Ultimate Frisbee Simulation initialized');
     console.log('Click on the field to move the player!');
+    console.log('Press H or click heat map buttons to visualize catch/difficulty/marking');
 }
 
 function setupEventListeners() {
@@ -43,80 +44,36 @@ function setupEventListeners() {
         field.toggleGrid();
     });
     
-    // Training mode button
-    document.getElementById('trainingModeBtn').addEventListener('click', () => {
-        const isTraining = game.toggleTrainingMode();
-        document.getElementById('trainingModeBtn').textContent = isTraining ? 'Exit Training' : 'Training Mode';
-        document.getElementById('trainingModeBtn').style.backgroundColor = isTraining ? '#f59e0b' : '';
-        document.getElementById('recordExampleBtn').disabled = !isTraining;
-        document.getElementById('trainingStatus').textContent = isTraining ? 'ON' : 'OFF';
-        document.getElementById('trainingInstructions').style.display = isTraining ? 'block' : 'none';
-        updateExampleCount();
+    // Heat map toggles: each button turns that layer on/off; multiple = combined (multiplied)
+    const heatMapCatchBtn = document.getElementById('heatMapCatchBtn');
+    const heatMapDifficultyBtn = document.getElementById('heatMapDifficultyBtn');
+    const heatMapMarkingDifficultyBtn = document.getElementById('heatMapMarkingDifficultyBtn');
+
+    const updateHeatMapButtonStates = () => {
+        const enabled = game.getHeatMapModesEnabled();
+        heatMapCatchBtn.classList.toggle('active', enabled.catch);
+        heatMapCatchBtn.textContent = enabled.catch ? 'Catch On' : 'Catch';
+        heatMapDifficultyBtn.classList.toggle('active', enabled.difficulty);
+        heatMapDifficultyBtn.textContent = enabled.difficulty ? 'Difficulty On' : 'Difficulty';
+        heatMapMarkingDifficultyBtn.classList.toggle('active', enabled.markingDifficulty);
+        heatMapMarkingDifficultyBtn.textContent = enabled.markingDifficulty ? 'Marking On' : 'Marking';
+        field.setHeatMapVisible(game.isAnyHeatMapEnabled());
+    };
+
+    heatMapCatchBtn.addEventListener('click', () => {
+        game.setHeatMapModeEnabled('catch', !game.getHeatMapModesEnabled().catch);
+        updateHeatMapButtonStates();
+    });
+    heatMapDifficultyBtn.addEventListener('click', () => {
+        game.setHeatMapModeEnabled('difficulty', !game.getHeatMapModesEnabled().difficulty);
+        updateHeatMapButtonStates();
+    });
+    heatMapMarkingDifficultyBtn.addEventListener('click', () => {
+        game.setHeatMapModeEnabled('markingDifficulty', !game.getHeatMapModesEnabled().markingDifficulty);
+        updateHeatMapButtonStates();
     });
     
-    // Record example button
-    document.getElementById('recordExampleBtn').addEventListener('click', () => {
-        if (game.recordTrainingExample()) {
-            updateExampleCount();
-            // Flash button to show it worked
-            const btn = document.getElementById('recordExampleBtn');
-            btn.style.backgroundColor = '#10b981';
-            setTimeout(() => btn.style.backgroundColor = '', 300);
-        }
-    });
-    
-    // Clear examples button
-    document.getElementById('clearExamplesBtn').addEventListener('click', () => {
-        if (confirm('Clear all training examples?')) {
-            game.clearTrainingExamples();
-            updateExampleCount();
-            game.render();
-        }
-    });
-    
-    // Toggle learned behavior button
-    document.getElementById('toggleLearnedBtn').addEventListener('click', () => {
-        const isLearned = game.toggleLearnedBehavior();
-        document.getElementById('toggleLearnedBtn').textContent = isLearned ? 'Disable Learned AI' : 'Use Learned AI';
-        document.getElementById('toggleLearnedBtn').style.backgroundColor = isLearned ? '#10b981' : '';
-        document.getElementById('learnedStatus').textContent = isLearned ? 'ON' : 'OFF';
-    });
-    
-    // Export button
-    document.getElementById('exportBtn').addEventListener('click', () => {
-        const data = game.exportTrainingData();
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'defense-training-data.json';
-        a.click();
-        URL.revokeObjectURL(url);
-        console.log('Exported training data');
-    });
-    
-    // Import button
-    document.getElementById('importBtn').addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'application/json';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    if (game.importTrainingData(event.target.result)) {
-                        updateExampleCount();
-                        game.render();
-                    }
-                };
-                reader.readAsText(file);
-            }
-        };
-        input.click();
-    });
-    
-    // Canvas click - set target for player to run to OR select/move player in training mode
+    // Canvas click - set target for player to run to
     field.canvas.addEventListener('click', (e) => {
         const rect = field.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -124,26 +81,12 @@ function setupEventListeners() {
         
         const fieldCoords = field.canvasToField(x, y);
         
-        if (game.trainingMode) {
-            // Try to select a player first
-            const selected = game.selectPlayer(fieldCoords.x, fieldCoords.y);
-            if (!selected && game.selectedPlayer) {
-                // No player clicked, move the selected player
-                if (game.moveSelectedPlayer(fieldCoords.x, fieldCoords.y)) {
-                    game.render();
-                }
-            } else if (selected) {
-                game.render();
-            }
-            updateSelectedPlayer();
-        } else {
-            // Normal mode - set the target for the player to run to (only the offensive player)
-            if (game.players.length > 0) {
-                const player = game.players.find(p => !p.isDefender);
-                if (player) {
-                    player.targetX = fieldCoords.x;
-                    player.targetY = fieldCoords.y;
-                }
+        // Set the target for the movable offensive player (offense_2)
+        if (game.players.length > 0) {
+            const player = game.players.find(p => p.id === 'offense_2');
+            if (player) {
+                player.targetX = fieldCoords.x;
+                player.targetY = fieldCoords.y;
             }
         }
     });
@@ -160,6 +103,21 @@ function setupEventListeners() {
             `(${Math.round(x)}, ${Math.round(y)})px`;
         document.getElementById('fieldCoords').textContent = 
             `(${fieldCoords.x.toFixed(1)}, ${fieldCoords.y.toFixed(1)}) yards`;
+        
+        // Get the square value from heat map data
+        let squareValueText = '-';
+        if (field.showHeatMap && field.heatMapData && fieldCoords.x >= 0 && fieldCoords.y >= 0) {
+            const gridSize = field.heatMapData.gridSize;
+            const gridX = Math.floor(fieldCoords.x / gridSize);
+            const gridY = Math.floor(fieldCoords.y / gridSize);
+            const mode = field.heatMapData.mode || 'catch';
+            if (field.heatMapData.values[gridX] && 
+                field.heatMapData.values[gridX][gridY] !== undefined) {
+                const value = field.heatMapData.values[gridX][gridY];
+                squareValueText = `${value.toFixed(3)} (${mode})`;
+            }
+        }
+        document.getElementById('squareValue').textContent = squareValueText;
     });
     
     // Keyboard controls
@@ -179,38 +137,14 @@ function setupEventListeners() {
             case 'g': // G - toggle grid
                 field.toggleGrid();
                 break;
-            case 't': // T - toggle training mode
-                document.getElementById('trainingModeBtn').click();
-                break;
-            case 'e': // E - record example (when in training mode)
-                if (game.trainingMode) {
-                    document.getElementById('recordExampleBtn').click();
-                }
-                break;
-            case 'Escape': // Escape - deselect player in training mode
-                if (game.trainingMode && game.selectedPlayer) {
-                    game.selectedPlayer = null;
-                    updateSelectedPlayer();
-                    game.render();
-                }
+            case 'h': // H - turn all heat maps off
+                game.setHeatMapModeEnabled('catch', false);
+                game.setHeatMapModeEnabled('difficulty', false);
+                game.setHeatMapModeEnabled('markingDifficulty', false);
+                updateHeatMapButtonStates();
                 break;
         }
     });
-}
-
-function updateExampleCount() {
-    const count = game.trainingExamples.length;
-    document.getElementById('examplesCount').textContent = `Examples: ${count}`;
-    document.getElementById('toggleLearnedBtn').disabled = count < 3;
-}
-
-function updateSelectedPlayer() {
-    if (game.selectedPlayer) {
-        const type = game.selectedPlayer.isDefender ? 'Defender' : 'Offense';
-        document.getElementById('selectedPlayer').textContent = type;
-    } else {
-        document.getElementById('selectedPlayer').textContent = 'None';
-    }
 }
 
 function gameLoop(currentTime) {

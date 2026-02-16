@@ -10,33 +10,31 @@ class UltimateGame {
         this.disc = null;
         this.isRunning = false;
         this.animationFrameId = null;
-        
+
         // Game state
         this.team1Score = 0;
         this.team2Score = 0;
-        
-        // Training mode for learning defensive positioning
-        this.trainingMode = false;
-        this.trainingExamples = []; // Array of {offenseX, offenseY, defenseX, defenseY}
-        this.useLearnedBehavior = false;
-        this.selectedPlayer = null; // For manual positioning in training mode
-        
+
+        // Heat map settings
+        this.heatMapGridSize = 1; // 1 yard per cell
+        this.heatMapModesEnabled = { catch: false, difficulty: false, markingDifficulty: false };
+
         this.initialize();
     }
-    
+
     initialize() {
         // Initialize with some example players
         this.createExamplePlayers();
         this.createDisc();
     }
-    
+
     createExamplePlayers() {
-        // Single player at center of field
+        // Offensive player 1 - has the disc (stationary)
         this.players.push({
-            id: 'player_1',
+            id: 'offense_1',
             team: 1,
-            x: 55, // Center of field
-            y: 20, // Center width
+            x: 80, // Position on field
+            y: 15, // Center width
             vx: 0,
             vy: 0,
             targetX: null,
@@ -50,44 +48,105 @@ class UltimateGame {
             isDecelerating: false, // Flag to track if currently decelerating for direction change
             color: '#ef4444',
             hasDisc: true,
-            isDefender: false
+            isDefender: false,
+            isMark: false // This player's defender will be the mark
         });
-        
-        // Add a defender
+
+        // Defender 1 - marks the player with disc (rendered as perpendicular line)
         this.players.push({
-            id: 'defender_1',
+            id: 'mark_1',
             team: 2,
-            x: 55, // Same horizontal position as offense
-            y: 19, // 1 yard up/toward sideline
+            x: 79,
+            y: 16,
             vx: 0,
             vy: 0,
             targetX: null,
             targetY: null,
             previousTargetX: null,
             previousTargetY: null,
-            speed: 7, // Same speed as offensive player
-            acceleration: 7 / 3 * 2, // Reach top speed in 3 yards
-            deceleration: 7 / 2, // Stop in 2 seconds from full speed: 7 yards/sec / 2 sec = 3.5 yards/s²
-            currentSpeed: 0, // Current actual speed
-            isDecelerating: false, // Flag to track if currently decelerating for direction change
+            speed: 7,
+            acceleration: 7 / 3 * 2,
+            deceleration: 7 / 2,
+            currentSpeed: 0,
+            isDecelerating: false,
             color: '#3b82f6',
             hasDisc: false,
-            isDefender: true
+            isDefender: true,
+            isMark: true // This defender is rendered as a mark line
+        });
+
+        // Offensive player 2 - movable with clicks
+        this.players.push({
+            id: 'offense_2',
+            team: 1,
+            x: 55,
+            y: 15,
+            vx: 0,
+            vy: 0,
+            targetX: null,
+            targetY: null,
+            previousTargetX: null,
+            previousTargetY: null,
+            speed: 7,
+            acceleration: 7 / 3 * 2,
+            deceleration: 7 / 2 * 2,
+            currentSpeed: 0,
+            isDecelerating: false,
+            color: '#ef4444',
+            hasDisc: false,
+            isDefender: false,
+            isMark: false
+        });
+
+        // Defender 2 - follows offensive player 2 with 1 yard upward offset
+        this.players.push({
+            id: 'defender_2',
+            team: 2,
+            x: 55,
+            y: 14, // 1 yard upward offset
+            vx: 0,
+            vy: 0,
+            targetX: null,
+            targetY: null,
+            previousTargetX: null,
+            previousTargetY: null,
+            speed: 7,
+            acceleration: 7 / 3 * 2,
+            deceleration: 7 / 2,
+            currentSpeed: 0,
+            isDecelerating: false,
+            color: '#3b82f6',
+            hasDisc: false,
+            isDefender: true,
+            isMark: false,
+            followsPlayer: 'offense_2', // This defender follows offense_2
+            offsetY: -1 // 1 yard upward offset
         });
     }
-    
+
     createDisc() {
         this.disc = {
-            x: 55, // Center of field
-            y: 20, // Center width
+            x: 80, // Match disc holder position
+            y: 15, // Match disc holder position
             vx: 0,
             vy: 0,
             holder: null, // Player holding the disc
             inFlight: false
         };
     }
-    
+
     update(deltaTime) {
+        // First, update defender that follows another player
+        const followerDefender = this.players.find(p => p.followsPlayer);
+        if (followerDefender) {
+            const targetPlayer = this.players.find(p => p.id === followerDefender.followsPlayer);
+            if (targetPlayer) {
+                // Set target to follow the player with offset
+                followerDefender.targetX = targetPlayer.x;
+                followerDefender.targetY = targetPlayer.y + followerDefender.offsetY;
+            }
+        }
+
         // Update player positions (even when not running, for smooth movement)
         this.players.forEach(player => {
             // Check if player has a target to move toward
@@ -95,34 +154,34 @@ class UltimateGame {
                 const dx = player.targetX - player.x;
                 const dy = player.targetY - player.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
-                
+
                 // Check if target has changed (new click/direction)
                 const targetChanged = player.previousTargetX !== player.targetX || player.previousTargetY !== player.targetY;
                 if (targetChanged && player.currentSpeed > 1) {
                     // Calculate desired direction for new target
                     const dirX = dx / distance;
                     const dirY = dy / distance;
-                    
+
                     // Calculate current direction of movement
                     const currentMagnitude = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
                     if (currentMagnitude > 0.01) {
                         const currentDirX = player.vx / currentMagnitude;
                         const currentDirY = player.vy / currentMagnitude;
-                        
+
                         // Check if we're changing direction (dot product tells us alignment)
                         const dotProduct = currentDirX * dirX + currentDirY * dirY;
-                        
+
                         // If changing direction significantly, mark for deceleration
                         if (dotProduct < 0.7) {
                             player.isDecelerating = true;
                         }
                     }
-                    
+
                     // Update previous target
                     player.previousTargetX = player.targetX;
                     player.previousTargetY = player.targetY;
                 }
-                
+
                 // If close enough to target, stop
                 if (distance < 0.5) {
                     player.x = player.targetX;
@@ -137,12 +196,12 @@ class UltimateGame {
                     // Calculate desired direction
                     const dirX = dx / distance;
                     const dirY = dy / distance;
-                    
+
                     // If we're in forced deceleration mode due to direction change
                     if (player.isDecelerating) {
                         // Decelerate
                         player.currentSpeed = Math.max(0, player.currentSpeed - player.deceleration * deltaTime);
-                        
+
                         // Keep moving in current direction while decelerating
                         const currentMagnitude = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
                         if (currentMagnitude > 0.01) {
@@ -151,7 +210,7 @@ class UltimateGame {
                             player.vx = currentDirX * player.currentSpeed;
                             player.vy = currentDirY * player.currentSpeed;
                         }
-                        
+
                         // Once speed is low enough, switch to new direction
                         if (player.currentSpeed < 2) {
                             player.isDecelerating = false;
@@ -160,14 +219,14 @@ class UltimateGame {
                         // Normal movement - calculate target speed based on distance
                         const decelerationDistance = (player.currentSpeed * player.currentSpeed) / (2 * player.deceleration);
                         let targetSpeed;
-                        
+
                         if (distance < decelerationDistance) {
                             // Need to start slowing down to stop at target
                             targetSpeed = Math.sqrt(2 * player.deceleration * distance);
                         } else {
                             targetSpeed = player.speed;
                         }
-                        
+
                         // Apply acceleration or deceleration
                         if (player.currentSpeed < targetSpeed) {
                             // Accelerate
@@ -176,7 +235,7 @@ class UltimateGame {
                             // Decelerate
                             player.currentSpeed = Math.max(targetSpeed, player.currentSpeed - player.deceleration * deltaTime);
                         }
-                        
+
                         // Update velocity with current speed in desired direction
                         player.vx = dirX * player.currentSpeed;
                         player.vy = dirY * player.currentSpeed;
@@ -191,7 +250,7 @@ class UltimateGame {
                 // No target - apply deceleration (momentum continues for 2 yards)
                 if (player.currentSpeed > 0.1) {
                     player.currentSpeed = Math.max(0, player.currentSpeed - player.deceleration * deltaTime);
-                    
+
                     // Maintain direction but reduce speed
                     const currentMagnitude = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
                     if (currentMagnitude > 0.01) {
@@ -207,32 +266,32 @@ class UltimateGame {
                 }
                 player.isDecelerating = false;
             }
-            
+
             // Update position based on velocity
             player.x += player.vx * deltaTime;
             player.y += player.vy * deltaTime;
-            
+
             // Keep players within field bounds
             player.x = Math.max(0, Math.min(this.field.totalLength, player.x));
             player.y = Math.max(0, Math.min(this.field.fieldWidth, player.y));
         });
-        
+
         // Update disc position
         if (this.disc.inFlight) {
             this.disc.x += this.disc.vx * deltaTime;
             this.disc.y += this.disc.vy * deltaTime;
-            
+
             // Simple disc physics - slow down over time
             this.disc.vx *= 0.98;
             this.disc.vy *= 0.98;
-            
+
             // Check if disc has landed
             if (Math.abs(this.disc.vx) < 0.1 && Math.abs(this.disc.vy) < 0.1) {
                 this.disc.inFlight = false;
                 this.disc.vx = 0;
                 this.disc.vy = 0;
             }
-            
+
             // Check for catches
             this.checkCatch();
         } else if (this.disc.holder) {
@@ -241,112 +300,442 @@ class UltimateGame {
             this.disc.y = this.disc.holder.y;
         }
     }
-    
+
     checkCatch() {
         if (!this.disc.inFlight) return;
-        
+
         const catchRadius = 2; // yards
-        
+
         this.players.forEach(player => {
             const dx = player.x - this.disc.x;
             const dy = player.y - this.disc.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            
+
             if (distance < catchRadius) {
                 this.catchDisc(player);
             }
         });
     }
-    
+
     catchDisc(player) {
         this.disc.inFlight = false;
         this.disc.holder = player;
         this.disc.vx = 0;
         this.disc.vy = 0;
         player.hasDisc = true;
-        
+
         console.log(`Player ${player.id} caught the disc at (${Math.round(player.x)}, ${Math.round(player.y)})`);
     }
-    
+
     throwDisc(targetX, targetY, speed = 30) {
         if (!this.disc.holder) return;
-        
+
         const dx = targetX - this.disc.x;
         const dy = targetY - this.disc.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         this.disc.vx = (dx / distance) * speed;
         this.disc.vy = (dy / distance) * speed;
         this.disc.inFlight = true;
         this.disc.holder.hasDisc = false;
         this.disc.holder = null;
-        
+
         console.log(`Disc thrown to (${Math.round(targetX)}, ${Math.round(targetY)})`);
     }
-    
+
+    calculateThrowValue(currentX, currentY, targetX, targetY) {
+        // --- 1. DISTANCE GAIN COMPONENT (0 to 1) ---
+        const distanceGain = currentX - targetX; // Positive = forward (toward left endzone)
+        const maxRealisticGain = 70; // Extended to 70 yards for long throws
+
+        let distanceValue;
+        if (distanceGain >= 0) {
+            // Positive gains are normal
+            distanceValue = Math.min(1, distanceGain / maxRealisticGain);
+        } else {
+            // Negative throws (backwards to the right) have rapidly diminishing value
+            // At -5 yards: e^(-5/2) ≈ 0.082 (very low)
+            // At -10 yards: e^(-10/2) ≈ 0.007 (nearly zero)
+            const decayRate = 2; // Controls how quickly value drops
+            distanceValue = Math.exp(distanceGain / decayRate);
+        }
+
+        // --- 2. FIELD CENTER COMPONENT (0 to 1) ---
+        const fieldCenter = 20; // Center width is 20 yards
+        const distanceFromCenter = Math.abs(targetY - fieldCenter);
+        const maxDistanceFromCenter = 20; // Max is at sideline
+        const centerValue = 1 - (distanceFromCenter / maxDistanceFromCenter);
+
+        // --- 3. COMPLETION PROBABILITY (0 to 1) ---
+        const dx = targetX - currentX;
+        const dy = targetY - currentY;
+        const throwDistance = Math.sqrt(dx * dx + dy * dy);
+
+        // Steeper exponential decay for very long throws
+        const completionProb = Math.exp(-throwDistance / 40);
+
+        // --- 4. MARK INFLUENCE (0 to 1) ---
+        // Mark is always on the line from thrower to (0, 40)
+        const markVector = {
+            x: 0 - currentX,  // Vector from thrower to (0, 40)
+            y: 40 - currentY
+        };
+
+        const throwVector = {
+            x: targetX - currentX,
+            y: targetY - currentY
+        };
+
+        // Normalize mark vector (from origin to thrower)
+        const markLength = Math.sqrt(markVector.x * markVector.x + markVector.y * markVector.y);
+        if (markLength > 0) {
+            markVector.x /= markLength;
+            markVector.y /= markLength;
+        }
+
+        // Normalize throw vector
+        const throwLength = Math.sqrt(throwVector.x * throwVector.x + throwVector.y * throwVector.y);
+        if (throwLength > 0) {
+            throwVector.x /= throwLength;
+            throwVector.y /= throwLength;
+        }
+
+        // Dot product gives cos(angle)
+        const dotProduct = markVector.x * throwVector.x + markVector.y * throwVector.y;
+
+        // Cross product gives direction
+        const crossProduct = markVector.x * throwVector.y - markVector.y * throwVector.x;
+
+        // Calculate angle in radians
+        const angle = Math.atan2(crossProduct, dotProduct);
+        const absAngle = Math.abs(angle);
+
+        // Mark heavily influences ±45 degrees (π/4 radians)
+        const highPenaltyZone = Math.PI / 4;  // 45 degrees
+        const fullInfluenceZone = Math.PI / 2; // 90 degrees
+
+        let markPenalty = 1.0;
+
+        if (absAngle < highPenaltyZone) {
+            // Within 45 degrees - SEVERE penalty (90% at center)
+            const influenceFactor = 1 - (absAngle / highPenaltyZone);
+            markPenalty = 1 - (0.9 * influenceFactor); // Up to 90% penalty
+        } else if (absAngle < fullInfluenceZone) {
+            // Between 45-90 degrees - moderate tapering penalty
+            const taperingFactor = (absAngle - highPenaltyZone) / (fullInfluenceZone - highPenaltyZone);
+            markPenalty = 0.1 + (0.9 * taperingFactor);
+        }
+
+        // --- 5. COMBINE ALL FACTORS ---
+        const weights = {
+            distance: 0.30,    // 30% - reward distance
+            center: 0.10,      // 10% - reward central position
+            completion: 0.40,  // 40% - heavily penalize risky throws
+            mark: 0.20         // 20% - heavily penalize throwing into mark
+        };
+
+        let finalValue = (
+            distanceValue * weights.distance +
+            centerValue * weights.center +
+            completionProb * weights.completion +
+            markPenalty * weights.mark
+        );
+
+        // Apply additional penalty multiplier for negative throws
+        if (distanceGain < 0) {
+            // At -5 yards: e^(-5/3) ≈ 0.189
+            // At -10 yards: e^(-10/3) ≈ 0.036
+            const negativeMultiplier = Math.exp(distanceGain / 3);
+            finalValue *= negativeMultiplier;
+        }
+
+        return Math.max(0, Math.min(1, finalValue));
+    }
+
+    /**
+     * Marking difficulty: how hard it is to throw to (targetX, targetY) given the mark.
+     * Uses the same mark center line as throw value (thrower toward (0, 40)).
+     * Directly behind the mark (0°) = very difficult = 0; 90° from mark = easiest = 1.
+     * Returns a value in [0, 1].
+     */
+    calculateMarkingDifficultyAt(throwerX, throwerY, targetX, targetY) {
+        // Calculate distance from the disc to (targetX, targetY)
+        let ease = this.calculateEaseAt(throwerX, throwerY, targetX, targetY);
+        const dx = targetX - this.disc.x;
+        const dy = targetY - this.disc.y;
+        const distanceFromDisc = Math.sqrt(dx * dx + dy * dy);
+        let distanceFactor = 1 - (distanceFromDisc / 60)/3;
+        if (distanceFactor < 0) distanceFactor = 0;
+        return 1-((1-ease) * distanceFactor);
+
+    }
+
+    calculateEaseAt(throwerX, throwerY, targetX, targetY) {
+        const markVector = {
+            x: 0 - throwerX,
+            y: 40 - throwerY
+        };
+        const throwVector = {
+            x: targetX - throwerX,
+            y: targetY - throwerY
+        };
+        const markLength = Math.sqrt(markVector.x * markVector.x + markVector.y * markVector.y);
+        if (markLength < 0.001) return 1; // no well-defined mark direction
+        markVector.x /= markLength;
+        markVector.y /= markLength;
+        const throwLength = Math.sqrt(throwVector.x * throwVector.x + throwVector.y * throwVector.y);
+        if (throwLength < 0.001) return 0; // same cell as thrower = ambiguous, treat as hard
+        throwVector.x /= throwLength;
+        throwVector.y /= throwLength;
+        const dotProduct = markVector.x * throwVector.x + markVector.y * throwVector.y;
+        const crossProduct = markVector.x * throwVector.y - markVector.y * throwVector.x;
+        const angle = Math.atan2(crossProduct, dotProduct);
+        const absAngle = Math.abs(angle); // 0 to PI radians (0° to 180°)
+        // Ease: 0 at 0°, 1 at 90°, then stay 1 for 90–180° (both sides are easy)
+        const halfPi = Math.PI / 2;
+        if (absAngle >= halfPi) return 1;
+        let ease = absAngle / halfPi;
+        return ease;
+
+        
+    }
+
+    /**
+     * Difficulty at (x, y): increases quadratically with Euclidean distance from the disc.
+     * Returns squared distance in yards² (raw). Normalized to 0–1 in heat map by dividing by max on field.
+     */
+    calculateDifficultyAt(x, y) {
+        const dx = x - this.disc.x;
+        const dy = y - this.disc.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const distSq = dist * dist;
+        return Math.sqrt(distSq) / 80 // distance^4 — difficulty increases faster
+    }
+
+    /**
+     * Value to offense of having the disc at (x, y): 1 = scoring end zone, 0 = own end zone,
+     * in between = progress toward scoring (left = good). Includes slight center-width bonus.
+     */
+    calculateCatchValue(x, y) {
+        const endZoneDepth = this.field.endZoneDepth;
+        const fieldLength = this.field.fieldLength;
+        const totalLength = this.field.totalLength;
+        // Offense scores at left end zone (low x); own end zone is right (high x)
+        const offenseEndZoneEnd = endZoneDepth;
+        const ownEndZoneStart = endZoneDepth + fieldLength;
+
+        if (x <= offenseEndZoneEnd) {
+            return 1; // In scoring end zone: always 1
+        }
+        if (x >= ownEndZoneStart) {
+            return 0; // In own end zone
+        }
+        // In field: 1 at offense end, 0 at own end
+        const progress = (ownEndZoneStart - x) / fieldLength;
+        let positionValue = Math.max(0, Math.min(1, progress));
+        // Slight bonus for being near center width (easier to advance)
+        const fieldCenterY = this.field.fieldWidth / 2;
+        const distanceFromCenter = Math.abs(y - fieldCenterY);
+        const centerBonus = 1 - (distanceFromCenter / (this.field.fieldWidth / 2)) * 0 - 1 * (distanceFromCenter ** 4 / (this.field.fieldWidth / 2) ** 4);
+        return Math.max(0, Math.min(1, positionValue * centerBonus));
+    }
+
+    setHeatMapModeEnabled(mode, enabled) {
+        if (this.heatMapModesEnabled.hasOwnProperty(mode)) {
+            this.heatMapModesEnabled[mode] = !!enabled;
+        }
+    }
+
+    getHeatMapModesEnabled() {
+        return { ...this.heatMapModesEnabled };
+    }
+
+    isAnyHeatMapEnabled() {
+        return this.heatMapModesEnabled.catch || this.heatMapModesEnabled.difficulty || this.heatMapModesEnabled.markingDifficulty;
+    }
+
+    _getCatchLayer(numCellsX, numCellsY, gridSize) {
+        const values = [];
+        for (let x = 0; x < numCellsX; x++) {
+            values[x] = [];
+            for (let y = 0; y < numCellsY; y++) {
+                const cellX = x * gridSize + gridSize / 2;
+                const cellY = y * gridSize + gridSize / 2;
+                values[x][y] = this.calculateCatchValue(cellX, cellY);
+            }
+        }
+        return { values };
+    }
+
+    _getDifficultyLayer(numCellsX, numCellsY, gridSize) {
+        const values = [];
+        let maxDifficulty = 0;
+        for (let x = 0; x < numCellsX; x++) {
+            values[x] = [];
+            for (let y = 0; y < numCellsY; y++) {
+                const cellX = x * gridSize + gridSize / 2;
+                const cellY = y * gridSize + gridSize / 2;
+                const d = this.calculateDifficultyAt(cellX, cellY);
+                values[x][y] = d;
+                if (d > maxDifficulty) maxDifficulty = d;
+            }
+        }
+        if (maxDifficulty > 0) {
+            for (let x = 0; x < numCellsX; x++) {
+                for (let y = 0; y < numCellsY; y++) {
+                    values[x][y] /= maxDifficulty;
+                }
+            }
+        }
+        return { values };
+    }
+
+    _getMarkingDifficultyLayer(numCellsX, numCellsY, gridSize) {
+        const playerWithDisc = this.players.find(p => p.hasDisc);
+        if (!playerWithDisc) return null;
+        const throwerX = playerWithDisc.x;
+        const throwerY = playerWithDisc.y;
+        const values = [];
+        for (let x = 0; x < numCellsX; x++) {
+            values[x] = [];
+            for (let y = 0; y < numCellsY; y++) {
+                const targetX = x * gridSize + gridSize / 2;
+                const targetY = y * gridSize + gridSize / 2;
+                values[x][y] = this.calculateMarkingDifficultyAt(throwerX, throwerY, targetX, targetY);
+            }
+        }
+        return { values, throwerX, throwerY };
+    }
+
+    calculateHeatMap() {
+        if (!this.isAnyHeatMapEnabled()) return null;
+
+        const gridSize = this.heatMapGridSize;
+        const numCellsX = Math.ceil(this.field.totalLength / gridSize);
+        const numCellsY = Math.ceil(this.field.fieldWidth / gridSize);
+        const enabled = this.heatMapModesEnabled;
+        const layers = [];
+
+        if (enabled.catch) {
+            layers.push({ key: 'catch', ...this._getCatchLayer(numCellsX, numCellsY, gridSize) });
+        }
+        if (enabled.difficulty) {
+            const diff = this._getDifficultyLayer(numCellsX, numCellsY, gridSize);
+            layers.push({ key: 'difficulty', ...diff });
+        }
+        if (enabled.markingDifficulty) {
+            const layer = this._getMarkingDifficultyLayer(numCellsX, numCellsY, gridSize);
+            if (layer) layers.push({ key: 'markingDifficulty', ...layer });
+        }
+
+        if (layers.length === 0) return null;
+
+        let throwerX = this.disc.x, throwerY = this.disc.y;
+        const layerWithThrower = layers.find(l => l.throwerX !== undefined);
+        if (layerWithThrower) {
+            throwerX = layerWithThrower.throwerX;
+            throwerY = layerWithThrower.throwerY;
+        }
+        const values = [];
+        for (let x = 0; x < numCellsX; x++) {
+            values[x] = [];
+            for (let y = 0; y < numCellsY; y++) {
+                let product = 1;
+                for (const layer of layers) {
+                    let v = layer.values[x][y];
+                    if (layer.key === 'difficulty') v = 1 - v;
+                    product *= v;
+                }
+                values[x][y] = product;
+            }
+        }
+        // Normalize so highest value is 1 and lowest is 0
+        let min = Infinity, max = -Infinity;
+        for (let x = 0; x < numCellsX; x++) {
+            for (let y = 0; y < numCellsY; y++) {
+                const v = values[x][y];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+        const range = max - min;
+        if (range > 0) {
+            for (let x = 0; x < numCellsX; x++) {
+                for (let y = 0; y < numCellsY; y++) {
+                    values[x][y] = (values[x][y] - min) / range;
+                }
+            }
+        }
+        return {
+            gridSize,
+            values,
+            throwerX,
+            throwerY,
+            mode: layers.length > 1 ? 'combined' : layers[0].key
+        };
+    }
+
+    updateHeatMap() {
+        const heatMapData = this.calculateHeatMap();
+        this.field.setHeatMapData(heatMapData);
+        this.field.setHeatMapVisible(this.isAnyHeatMapEnabled());
+    }
+
     render() {
+        // Update heat map if enabled
+        this.updateHeatMap();
+
         // Render the field
         this.field.render();
-        
-        // Render training examples as small dots
-        if (this.trainingMode && this.trainingExamples.length > 0) {
-            this.trainingExamples.forEach(example => {
-                // Draw small markers for training positions
-                this.field.drawPlayer(example.offenseX, example.offenseY, '#ef444480', 2);
-                this.field.drawPlayer(example.defenseX, example.defenseY, '#3b82f680', 2);
-                // Draw line connecting them
-                this.field.drawLine(example.offenseX, example.offenseY, 
-                                   example.defenseX, example.defenseY, 
-                                   '#ffffff40', 1, true);
-            });
-        }
-        
-        // Draw mark lines (defender marking offensive player with disc)
-        const playerWithDisc = this.players.find(p => p.hasDisc);
-        if (playerWithDisc) {
-            const defenders = this.players.filter(p => p.isDefender);
-            defenders.forEach(defender => {
-                // Draw line from defender to player with disc
-                this.field.drawLine(
-                    defender.x, defender.y,
-                    playerWithDisc.x, playerWithDisc.y,
-                    '#ffffff',
-                    2,
-                    false
-                );
-            });
-        }
-        
+
         // Render players
         this.players.forEach(player => {
+            // Skip mark defenders - they will be rendered as lines
+            if (player.isMark) return;
+
             let radius = player.hasDisc ? 6 : 4;
-            
-            // Highlight selected player in training mode
-            if (this.trainingMode && this.selectedPlayer === player) {
-                radius += 2;
-                // Draw selection circle
-                const pos = this.field.fieldToCanvas(player.x, player.y);
-                this.field.ctx.beginPath();
-                this.field.ctx.arc(pos.x, pos.y, radius + 4, 0, Math.PI * 2);
-                this.field.ctx.strokeStyle = '#fbbf24';
-                this.field.ctx.lineWidth = 2;
-                this.field.ctx.stroke();
-            }
-            
+
             this.field.drawPlayer(player.x, player.y, player.color, radius);
-            
-            // Draw velocity vector if moving (not in training mode)
-            if (!this.trainingMode && (Math.abs(player.vx) > 0.1 || Math.abs(player.vy) > 0.1)) {
+
+            // Draw velocity vector if moving
+            if (Math.abs(player.vx) > 0.1 || Math.abs(player.vy) > 0.1) {
                 const targetX = player.x + player.vx * 2;
                 const targetY = player.y + player.vy * 2;
                 this.field.drawLine(player.x, player.y, targetX, targetY, player.color, 1, true);
             }
         });
-        
+
+        // Draw mark as perpendicular line
+        const playerWithDisc = this.players.find(p => p.hasDisc);
+        const markDefender = this.players.find(p => p.isMark);
+        if (playerWithDisc && markDefender) {
+            // Calculate vector from player with disc to (0, 40)
+            const dx = 0 - playerWithDisc.x;
+            const dy = 40 - playerWithDisc.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+
+            // Normalize the vector
+            const normX = dx / length;
+            const normY = dy / length;
+
+            // Perpendicular vector (rotate 90 degrees)
+            const perpX = -normY;
+            const perpY = normX;
+
+            // Draw line perpendicular to the player-corner line, centered at mark defender position
+            const markLineLength = 3; // yards
+            const x1 = markDefender.x - perpX * markLineLength / 2;
+            const y1 = markDefender.y - perpY * markLineLength / 2;
+            const x2 = markDefender.x + perpX * markLineLength / 2;
+            const y2 = markDefender.y + perpY * markLineLength / 2;
+
+            this.field.drawLine(x1, y1, x2, y2, markDefender.color, 3, false);
+        }
+
         // Render disc
         if (!this.disc.holder) {
             this.field.drawDisc(this.disc.x, this.disc.y);
-            
+
             // Draw disc trajectory if in flight
             if (this.disc.inFlight) {
                 const targetX = this.disc.x + this.disc.vx * 2;
@@ -355,17 +744,17 @@ class UltimateGame {
             }
         }
     }
-    
+
     start() {
         this.isRunning = true;
         console.log('Game started');
     }
-    
+
     stop() {
         this.isRunning = false;
         console.log('Game stopped');
     }
-    
+
     reset() {
         this.stop();
         this.players = [];
@@ -375,13 +764,13 @@ class UltimateGame {
         this.initialize();
         console.log('Game reset');
     }
-    
+
     // Example AI movement - you can expand this
     movePlayerToward(player, targetX, targetY, speed = 5) {
         const dx = targetX - player.x;
         const dy = targetY - player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         if (distance > 1) {
             player.vx = (dx / distance) * speed;
             player.vy = (dy / distance) * speed;
@@ -389,157 +778,5 @@ class UltimateGame {
             player.vx = 0;
             player.vy = 0;
         }
-    }
-    
-    // Training mode methods
-    toggleTrainingMode() {
-        this.trainingMode = !this.trainingMode;
-        this.selectedPlayer = null;
-        
-        if (this.trainingMode) {
-            // Stop players from moving in training mode
-            this.players.forEach(p => {
-                p.targetX = null;
-                p.targetY = null;
-                p.vx = 0;
-                p.vy = 0;
-                p.currentSpeed = 0;
-            });
-            console.log('Training mode enabled. Click players to select, then click field to position them.');
-        } else {
-            console.log('Training mode disabled.');
-        }
-        
-        return this.trainingMode;
-    }
-    
-    selectPlayer(x, y) {
-        if (!this.trainingMode) return null;
-        
-        const clickRadius = 2; // yards
-        
-        for (let player of this.players) {
-            const dx = player.x - x;
-            const dy = player.y - y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < clickRadius) {
-                this.selectedPlayer = player;
-                console.log(`Selected ${player.isDefender ? 'defender' : 'offensive player'}`);
-                return player;
-            }
-        }
-        
-        // Don't deselect here - return null to indicate no player was clicked
-        return null;
-    }
-    
-    moveSelectedPlayer(x, y) {
-        if (!this.trainingMode || !this.selectedPlayer) return false;
-        
-        this.selectedPlayer.x = x;
-        this.selectedPlayer.y = y;
-        console.log(`Moved ${this.selectedPlayer.isDefender ? 'defender' : 'offensive player'} to (${x.toFixed(1)}, ${y.toFixed(1)})`);
-        return true;
-    }
-    
-    recordTrainingExample() {
-        if (!this.trainingMode) return false;
-        
-        const offensivePlayer = this.players.find(p => !p.isDefender);
-        const defender = this.players.find(p => p.isDefender);
-        
-        if (!offensivePlayer || !defender) {
-            console.log('Need both offensive and defensive players');
-            return false;
-        }
-        
-        const example = {
-            offenseX: offensivePlayer.x,
-            offenseY: offensivePlayer.y,
-            defenseX: defender.x,
-            defenseY: defender.y
-        };
-        
-        this.trainingExamples.push(example);
-        console.log(`Recorded example ${this.trainingExamples.length}:`, example);
-        console.log(`Total examples: ${this.trainingExamples.length}`);
-        
-        return true;
-    }
-    
-    clearTrainingExamples() {
-        this.trainingExamples = [];
-        console.log('Cleared all training examples');
-    }
-    
-    toggleLearnedBehavior() {
-        if (this.trainingExamples.length < 3) {
-            console.log('Need at least 3 training examples to use learned behavior');
-            return false;
-        }
-        
-        this.useLearnedBehavior = !this.useLearnedBehavior;
-        console.log(`Learned behavior ${this.useLearnedBehavior ? 'enabled' : 'disabled'}`);
-        
-        return this.useLearnedBehavior;
-    }
-    
-    // Predict defensive position using k-nearest neighbors weighted average
-    predictDefensivePosition(offenseX, offenseY) {
-        if (this.trainingExamples.length === 0) {
-            return { x: offenseX, y: offenseY - 1 }; // Default fallback
-        }
-        
-        // Calculate distances to all training examples
-        const distances = this.trainingExamples.map(example => {
-            const dx = example.offenseX - offenseX;
-            const dy = example.offenseY - offenseY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            return { example, distance };
-        });
-        
-        // Sort by distance
-        distances.sort((a, b) => a.distance - b.distance);
-        
-        // Use k nearest neighbors (k = min(5, number of examples))
-        const k = Math.min(5, distances.length);
-        const nearest = distances.slice(0, k);
-        
-        // Weighted average based on inverse distance
-        let totalWeight = 0;
-        let weightedX = 0;
-        let weightedY = 0;
-        
-        nearest.forEach(({ example, distance }) => {
-            // Use inverse distance for weight (add small epsilon to avoid division by zero)
-            const weight = 1 / (distance + 0.1);
-            totalWeight += weight;
-            weightedX += example.defenseX * weight;
-            weightedY += example.defenseY * weight;
-        });
-        
-        return {
-            x: weightedX / totalWeight,
-            y: weightedY / totalWeight
-        };
-    }
-    
-    exportTrainingData() {
-        return JSON.stringify(this.trainingExamples, null, 2);
-    }
-    
-    importTrainingData(jsonString) {
-        try {
-            const data = JSON.parse(jsonString);
-            if (Array.isArray(data)) {
-                this.trainingExamples = data;
-                console.log(`Imported ${this.trainingExamples.length} training examples`);
-                return true;
-            }
-        } catch (e) {
-            console.error('Failed to import training data:', e);
-        }
-        return false;
     }
 }

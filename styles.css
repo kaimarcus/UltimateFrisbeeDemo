@@ -70,6 +70,22 @@ button:disabled {
     cursor: not-allowed;
 }
 
+.heat-map-label {
+    font-size: 14px;
+    color: #ccfbf1;
+    margin-right: 4px;
+}
+
+button.heat-map-toggle {
+    min-width: 80px;
+}
+
+button.heat-map-toggle.active {
+    background: #0d9488;
+    border-color: #5eead4;
+    box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
+}
+
 #trainingInstructions {
     color: #ccfbf1;
     line-height: 1.5;

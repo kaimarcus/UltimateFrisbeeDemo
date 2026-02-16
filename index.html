@@ -13,16 +13,13 @@
             <div class="controls">
                 <button id="resetBtn">Reset Field</button>
                 <button id="toggleGridBtn">Toggle Grid</button>
-                <button id="trainingModeBtn">Training Mode</button>
-                <button id="recordExampleBtn" disabled>Record Example</button>
-                <button id="clearExamplesBtn">Clear Examples</button>
-                <button id="toggleLearnedBtn" disabled>Use Learned AI</button>
-                <button id="exportBtn">Export Data</button>
-                <button id="importBtn">Import Data</button>
+                <span class="heat-map-label">Heat maps:</span>
+                <button id="heatMapCatchBtn" class="heat-map-toggle" title="Catch value">Catch</button>
+                <button id="heatMapDifficultyBtn" class="heat-map-toggle" title="Difficulty (distance from disc)">Difficulty</button>
+                <button id="heatMapMarkingDifficultyBtn" class="heat-map-toggle" title="Marking difficulty: red = throw into mark, green = throw around mark">Marking</button>
                 <div class="info">
                     <span>Field: 70 x 40 yards</span>
                     <span>End Zones: 20 yards each</span>
-                    <span id="examplesCount">Examples: 0</span>
                 </div>
             </div>
         </div>
@@ -36,22 +33,7 @@
             <div id="debugInfo">
                 <p>Mouse Position: <span id="mousePos">-</span></p>
                 <p>Field Coordinates: <span id="fieldCoords">-</span></p>
-                <p>Training Mode: <span id="trainingStatus">OFF</span></p>
-                <p>Learned AI: <span id="learnedStatus">OFF</span></p>
-                <p>Selected: <span id="selectedPlayer">None</span></p>
-            </div>
-            <div id="trainingInstructions" style="display: none; margin-top: 10px; padding: 10px; background: #2d5a3d; border-radius: 4px;">
-                <strong>Training Mode Instructions:</strong>
-                <ol style="margin: 5px 0; padding-left: 20px; font-size: 12px;">
-                    <li>Click a player to select them (yellow circle)</li>
-                    <li>Click on field to move selected player</li>
-                    <li>Press Escape to deselect player</li>
-                    <li>Position offense and defense as desired</li>
-                    <li>Click "Record Example" (or press E) to save</li>
-                    <li>Repeat for different scenarios (at least 3)</li>
-                    <li>Click "Use Learned AI" to enable AI based on examples</li>
-                    <li>Exit training mode to test the learned behavior</li>
-                </ol>
+                <p>Square Value: <span id="squareValue">-</span></p>
             </div>
         </div>
     </div>

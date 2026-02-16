@@ -31,6 +31,10 @@ class UltimateField {
             brickMark: '#fbbf24',
         };
         
+        // Heat map settings
+        this.showHeatMap = false;
+        this.heatMapData = null;
+        
         this.setupCanvas();
         this.render();
     }
@@ -70,6 +74,11 @@ class UltimateField {
         
         // Draw end zones
         this.drawEndZones();
+        
+        // Draw heat map if enabled (before grid and field lines)
+        if (this.showHeatMap && this.heatMapData) {
+            this.drawHeatMap();
+        }
         
         // Draw grid if enabled
         if (this.showGrid) {
@@ -224,6 +233,72 @@ class UltimateField {
     toggleGrid() {
         this.showGrid = !this.showGrid;
         this.render();
+    }
+    
+    toggleHeatMap() {
+        this.showHeatMap = !this.showHeatMap;
+        this.render();
+    }
+    
+    setHeatMapVisible(visible) {
+        this.showHeatMap = !!visible;
+    }
+    
+    setHeatMapData(heatMapData) {
+        this.heatMapData = heatMapData;
+    }
+    
+    drawHeatMap() {
+        if (!this.heatMapData) return;
+        
+        const { gridSize, values } = this.heatMapData;
+        
+        // Always: 0 = red, 1 = green (no inversion per mode)
+        for (let x = 0; x < this.totalLength; x += gridSize) {
+            for (let y = 0; y < this.fieldWidth; y += gridSize) {
+                const gridX = Math.floor(x / gridSize);
+                const gridY = Math.floor(y / gridSize);
+                const value = Math.max(0, Math.min(1, values[gridX][gridY]));
+                
+                const color = this.valueToColor(value);
+                
+                const start = this.fieldToCanvas(x, y);
+                const end = this.fieldToCanvas(x + gridSize, y + gridSize);
+                
+                this.ctx.fillStyle = color;
+                this.ctx.fillRect(start.x, start.y, end.x - start.x, end.y - start.y);
+            }
+        }
+    }
+    
+    valueToColor(value) {
+        // Color gradient: low value (0) = red, high value (1) = green
+        // Using smooth gradient: red -> orange -> yellow -> green
+        
+        const alpha = 0.6; // Transparency so we can still see the field
+        
+        if (value < 0.33) {
+            // Red to orange (0 to 0.33)
+            const t = value / 0.33;
+            const r = 255;
+            const g = Math.floor(0 + t * 165);
+            const b = 0;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        } else if (value < 0.67) {
+            // Orange to yellow (0.33 to 0.67)
+            const t = (value - 0.33) / 0.34;
+            const r = 255;
+            const g = Math.floor(165 + t * 90);
+            const b = 0;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        } else {
+            // Yellow to green (0.67 to 1)
+            const t = (value - 0.67) / 0.33;
+            const r = Math.floor(255 - t * 255);
+            const g = 255;
+            const b = 0;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
     }
     
     // Helper method to draw objects on the field

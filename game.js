@@ -196,7 +196,7 @@ class UltimateGame {
         // --- 4. MARK INFLUENCE (0 to 1) ---
         // Mark is always on the line from thrower to (0, 40)
         const markVector = {
-            x: 0 - currentX,  // Vector from thrower to (0, 40)
+            x: 20 - currentX,  // Vector from thrower to (0, 40)
             y: 40 - currentY
         };
 
@@ -291,7 +291,7 @@ class UltimateGame {
 
     calculateEaseAt(throwerX, throwerY, targetX, targetY) {
         const markVector = {
-            x: 0 - throwerX,
+            x: 20 - throwerX,
             y: 40 - throwerY
         };
         const throwVector = {
@@ -327,10 +327,12 @@ class UltimateGame {
     calculateDifficultyAt(x, y) {
         const dx = x - this.disc.x;
         const dy = y - this.disc.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const dist = Math.sqrt(dx * dx + dy * dy)-40;
+        if (dist <= 0) return 0
         const distSq = dist * dist;
         const difficulty = Math.sqrt(distSq) / 80 // distance^4 — difficulty increases faster
-        if (dist <= 2) return 1-((1-difficulty)*.7);
+        
+        //if (dist <= 2) return 1-((1-difficulty)*.7);
         return difficulty;
     }
 
@@ -358,7 +360,7 @@ class UltimateGame {
         // Slight bonus for being near center width (easier to advance)
         const fieldCenterY = this.field.fieldWidth / 2;
         const distanceFromCenter = Math.abs(y - fieldCenterY);
-        const centerBonus = 1 - (distanceFromCenter / (this.field.fieldWidth / 2)) * .5 - 1 * (distanceFromCenter ** 4 / (this.field.fieldWidth / 2) ** 4);
+        const centerBonus = 1 - (distanceFromCenter / (this.field.fieldWidth / 2)) * .5 - .7 * (distanceFromCenter ** 4 / (this.field.fieldWidth / 2) ** 4);
         return Math.max(0, Math.min(1, positionValue * centerBonus));
     }
 
@@ -617,7 +619,7 @@ class UltimateGame {
         const markDefender = this.players.find(p => p.isMark);
         if (playerWithDisc && markDefender) {
             // Calculate vector from player with disc to (0, 40)
-            const dx = 0 - playerWithDisc.x;
+            const dx = 20 - playerWithDisc.x;
             const dy = 40 - playerWithDisc.y;
             const length = Math.sqrt(dx * dx + dy * dy);
 

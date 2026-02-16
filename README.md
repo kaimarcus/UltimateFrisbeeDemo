@@ -66,10 +66,10 @@ A web-based ultimate frisbee field visualization and game simulation framework.
 Edit `game.js` to add your own game rules:
 
 ```javascript
-// Example: Add custom player behavior
+// Example: Add custom player behavior (e.g. read positions, update game state)
 game.players.forEach(player => {
     if (player.team === 1) {
-        game.movePlayerToward(player, game.disc.x, game.disc.y, 5);
+        // Use player.x, player.y for position
     }
 });
 ```

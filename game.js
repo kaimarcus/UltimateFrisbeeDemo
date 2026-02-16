@@ -35,17 +35,6 @@ class UltimateGame {
             team: 1,
             x: 80, // Position on field
             y: 15, // Center width
-            vx: 0,
-            vy: 0,
-            targetX: null,
-            targetY: null,
-            previousTargetX: null,
-            previousTargetY: null,
-            speed: 7, // yards per second (normal running speed)
-            acceleration: 7 / 3 * 2, // Reach top speed in 3 yards: a = v²/(2d) = 49/(2*3) ≈ 4.67 yards/s²
-            deceleration: 7 / 2 * 2, // Stop in 2 yards: a = v²/(2d) = 49/(2*2) = 12.25 yards/s²
-            currentSpeed: 0, // Current actual speed
-            isDecelerating: false, // Flag to track if currently decelerating for direction change
             color: '#ef4444',
             hasDisc: true,
             isDefender: false,
@@ -58,69 +47,34 @@ class UltimateGame {
             team: 2,
             x: 79,
             y: 16,
-            vx: 0,
-            vy: 0,
-            targetX: null,
-            targetY: null,
-            previousTargetX: null,
-            previousTargetY: null,
-            speed: 7,
-            acceleration: 7 / 3 * 2,
-            deceleration: 7 / 2,
-            currentSpeed: 0,
-            isDecelerating: false,
             color: '#3b82f6',
             hasDisc: false,
             isDefender: true,
             isMark: true // This defender is rendered as a mark line
         });
 
-        // Offensive player 2 - movable with clicks
+        // Offensive player 2
         this.players.push({
             id: 'offense_2',
             team: 1,
             x: 55,
             y: 15,
-            vx: 0,
-            vy: 0,
-            targetX: null,
-            targetY: null,
-            previousTargetX: null,
-            previousTargetY: null,
-            speed: 7,
-            acceleration: 7 / 3 * 2,
-            deceleration: 7 / 2 * 2,
-            currentSpeed: 0,
-            isDecelerating: false,
             color: '#ef4444',
             hasDisc: false,
             isDefender: false,
             isMark: false
         });
 
-        // Defender 2 - follows offensive player 2 with 1 yard upward offset
+        // Defender 2
         this.players.push({
             id: 'defender_2',
             team: 2,
             x: 55,
             y: 14, // 1 yard upward offset
-            vx: 0,
-            vy: 0,
-            targetX: null,
-            targetY: null,
-            previousTargetX: null,
-            previousTargetY: null,
-            speed: 7,
-            acceleration: 7 / 3 * 2,
-            deceleration: 7 / 2,
-            currentSpeed: 0,
-            isDecelerating: false,
             color: '#3b82f6',
             hasDisc: false,
             isDefender: true,
-            isMark: false,
-            followsPlayer: 'offense_2', // This defender follows offense_2
-            offsetY: -1 // 1 yard upward offset
+            isMark: false
         });
     }
 
@@ -136,146 +90,6 @@ class UltimateGame {
     }
 
     update(deltaTime) {
-        // First, update defender that follows another player
-        const followerDefender = this.players.find(p => p.followsPlayer);
-        if (followerDefender) {
-            const targetPlayer = this.players.find(p => p.id === followerDefender.followsPlayer);
-            if (targetPlayer) {
-                // Set target to follow the player with offset
-                followerDefender.targetX = targetPlayer.x;
-                followerDefender.targetY = targetPlayer.y + followerDefender.offsetY;
-            }
-        }
-
-        // Update player positions (even when not running, for smooth movement)
-        this.players.forEach(player => {
-            // Check if player has a target to move toward
-            if (player.targetX !== null && player.targetY !== null) {
-                const dx = player.targetX - player.x;
-                const dy = player.targetY - player.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // Check if target has changed (new click/direction)
-                const targetChanged = player.previousTargetX !== player.targetX || player.previousTargetY !== player.targetY;
-                if (targetChanged && player.currentSpeed > 1) {
-                    // Calculate desired direction for new target
-                    const dirX = dx / distance;
-                    const dirY = dy / distance;
-
-                    // Calculate current direction of movement
-                    const currentMagnitude = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
-                    if (currentMagnitude > 0.01) {
-                        const currentDirX = player.vx / currentMagnitude;
-                        const currentDirY = player.vy / currentMagnitude;
-
-                        // Check if we're changing direction (dot product tells us alignment)
-                        const dotProduct = currentDirX * dirX + currentDirY * dirY;
-
-                        // If changing direction significantly, mark for deceleration
-                        if (dotProduct < 0.7) {
-                            player.isDecelerating = true;
-                        }
-                    }
-
-                    // Update previous target
-                    player.previousTargetX = player.targetX;
-                    player.previousTargetY = player.targetY;
-                }
-
-                // If close enough to target, stop
-                if (distance < 0.5) {
-                    player.x = player.targetX;
-                    player.y = player.targetY;
-                    player.vx = 0;
-                    player.vy = 0;
-                    player.currentSpeed = 0;
-                    player.isDecelerating = false;
-                    player.targetX = null;
-                    player.targetY = null;
-                } else if (distance > 0.1) {
-                    // Calculate desired direction
-                    const dirX = dx / distance;
-                    const dirY = dy / distance;
-
-                    // If we're in forced deceleration mode due to direction change
-                    if (player.isDecelerating) {
-                        // Decelerate
-                        player.currentSpeed = Math.max(0, player.currentSpeed - player.deceleration * deltaTime);
-
-                        // Keep moving in current direction while decelerating
-                        const currentMagnitude = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
-                        if (currentMagnitude > 0.01) {
-                            const currentDirX = player.vx / currentMagnitude;
-                            const currentDirY = player.vy / currentMagnitude;
-                            player.vx = currentDirX * player.currentSpeed;
-                            player.vy = currentDirY * player.currentSpeed;
-                        }
-
-                        // Once speed is low enough, switch to new direction
-                        if (player.currentSpeed < 2) {
-                            player.isDecelerating = false;
-                        }
-                    } else {
-                        // Normal movement - calculate target speed based on distance
-                        const decelerationDistance = (player.currentSpeed * player.currentSpeed) / (2 * player.deceleration);
-                        let targetSpeed;
-
-                        if (distance < decelerationDistance) {
-                            // Need to start slowing down to stop at target
-                            targetSpeed = Math.sqrt(2 * player.deceleration * distance);
-                        } else {
-                            targetSpeed = player.speed;
-                        }
-
-                        // Apply acceleration or deceleration
-                        if (player.currentSpeed < targetSpeed) {
-                            // Accelerate
-                            player.currentSpeed = Math.min(targetSpeed, player.currentSpeed + player.acceleration * deltaTime);
-                        } else if (player.currentSpeed > targetSpeed) {
-                            // Decelerate
-                            player.currentSpeed = Math.max(targetSpeed, player.currentSpeed - player.deceleration * deltaTime);
-                        }
-
-                        // Update velocity with current speed in desired direction
-                        player.vx = dirX * player.currentSpeed;
-                        player.vy = dirY * player.currentSpeed;
-                    }
-                } else {
-                    player.vx = 0;
-                    player.vy = 0;
-                    player.currentSpeed = 0;
-                    player.isDecelerating = false;
-                }
-            } else {
-                // No target - apply deceleration (momentum continues for 2 yards)
-                if (player.currentSpeed > 0.1) {
-                    player.currentSpeed = Math.max(0, player.currentSpeed - player.deceleration * deltaTime);
-
-                    // Maintain direction but reduce speed
-                    const currentMagnitude = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
-                    if (currentMagnitude > 0.01) {
-                        const dirX = player.vx / currentMagnitude;
-                        const dirY = player.vy / currentMagnitude;
-                        player.vx = dirX * player.currentSpeed;
-                        player.vy = dirY * player.currentSpeed;
-                    }
-                } else {
-                    player.vx = 0;
-                    player.vy = 0;
-                    player.currentSpeed = 0;
-                }
-                player.isDecelerating = false;
-            }
-
-            // Update position based on velocity
-            player.x += player.vx * deltaTime;
-            player.y += player.vy * deltaTime;
-
-            // Keep players within field bounds
-            player.x = Math.max(0, Math.min(this.field.totalLength, player.x));
-            player.y = Math.max(0, Math.min(this.field.fieldWidth, player.y));
-        });
-
         // Update disc position
         if (this.disc.inFlight) {
             this.disc.x += this.disc.vx * deltaTime;
@@ -696,13 +510,6 @@ class UltimateGame {
             let radius = player.hasDisc ? 6 : 4;
 
             this.field.drawPlayer(player.x, player.y, player.color, radius);
-
-            // Draw velocity vector if moving
-            if (Math.abs(player.vx) > 0.1 || Math.abs(player.vy) > 0.1) {
-                const targetX = player.x + player.vx * 2;
-                const targetY = player.y + player.vy * 2;
-                this.field.drawLine(player.x, player.y, targetX, targetY, player.color, 1, true);
-            }
         });
 
         // Draw mark as perpendicular line
@@ -763,20 +570,5 @@ class UltimateGame {
         this.team2Score = 0;
         this.initialize();
         console.log('Game reset');
-    }
-
-    // Example AI movement - you can expand this
-    movePlayerToward(player, targetX, targetY, speed = 5) {
-        const dx = targetX - player.x;
-        const dy = targetY - player.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance > 1) {
-            player.vx = (dx / distance) * speed;
-            player.vy = (dy / distance) * speed;
-        } else {
-            player.vx = 0;
-            player.vy = 0;
-        }
     }
 }

@@ -28,7 +28,6 @@ function init() {
     requestAnimationFrame(gameLoop);
     
     console.log('Ultimate Frisbee Simulation initialized');
-    console.log('Click on the field to move the player!');
     console.log('Press H or click heat map buttons to visualize catch/difficulty/marking');
 }
 
@@ -71,24 +70,6 @@ function setupEventListeners() {
     heatMapMarkingDifficultyBtn.addEventListener('click', () => {
         game.setHeatMapModeEnabled('markingDifficulty', !game.getHeatMapModesEnabled().markingDifficulty);
         updateHeatMapButtonStates();
-    });
-    
-    // Canvas click - set target for player to run to
-    field.canvas.addEventListener('click', (e) => {
-        const rect = field.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        const fieldCoords = field.canvasToField(x, y);
-        
-        // Set the target for the movable offensive player (offense_2)
-        if (game.players.length > 0) {
-            const player = game.players.find(p => p.id === 'offense_2');
-            if (player) {
-                player.targetX = fieldCoords.x;
-                player.targetY = fieldCoords.y;
-            }
-        }
     });
     
     // Mouse move - show coordinates
@@ -167,15 +148,3 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
-
-// Example: Simple AI behavior (uncomment to enable)
-// setInterval(() => {
-//     if (game.isRunning) {
-//         // Move players toward disc
-//         game.players.forEach(player => {
-//             if (!player.hasDisc) {
-//                 game.movePlayerToward(player, game.disc.x, game.disc.y, 3);
-//             }
-//         });
-//     }
-// }, 100);

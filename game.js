@@ -320,15 +320,18 @@ class UltimateGame {
     }
 
     /**
-     * Difficulty at (x, y): increases quadratically with Euclidean distance from the disc.
-     * Returns squared distance in yards² (raw). Normalized to 0–1 in heat map by dividing by max on field.
+     * Difficulty at (x, y): increases with Euclidean distance from the disc.
+     * Within 2 yards of the disc, difficulty is 0.7; beyond that it ramps to 1.
+     * Returns raw value; normalized to 0–1 in heat map by dividing by max on field.
      */
     calculateDifficultyAt(x, y) {
         const dx = x - this.disc.x;
         const dy = y - this.disc.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const distSq = dist * dist;
-        return Math.sqrt(distSq) / 80 // distance^4 — difficulty increases faster
+        const difficulty = Math.sqrt(distSq) / 80 // distance^4 — difficulty increases faster
+        if (dist <= 2) return 1-((1-difficulty)*.7);
+        return difficulty;
     }
 
     /**

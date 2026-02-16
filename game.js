@@ -84,12 +84,15 @@ class UltimateGame {
     }
 
     createDisc() {
+        const holder = this.players.find(p => p.hasDisc) || null;
+        const x = holder ? holder.x : 80;
+        const y = holder ? holder.y : 15;
         this.disc = {
-            x: 80, // Match disc holder position
-            y: 15, // Match disc holder position
+            x,
+            y,
             vx: 0,
             vy: 0,
-            holder: null, // Player holding the disc
+            holder, // Player holding the disc (synced with player.hasDisc)
             inFlight: false
         };
     }
@@ -162,115 +165,6 @@ class UltimateGame {
         console.log(`Disc thrown to (${Math.round(targetX)}, ${Math.round(targetY)})`);
     }
 
-    calculateThrowValue(currentX, currentY, targetX, targetY) {
-        // --- 1. DISTANCE GAIN COMPONENT (0 to 1) ---
-        const distanceGain = currentX - targetX; // Positive = forward (toward left endzone)
-        const maxRealisticGain = 70; // Extended to 70 yards for long throws
-
-        let distanceValue;
-        if (distanceGain >= 0) {
-            // Positive gains are normal
-            distanceValue = Math.min(1, distanceGain / maxRealisticGain);
-        } else {
-            // Negative throws (backwards to the right) have rapidly diminishing value
-            // At -5 yards: e^(-5/2) ≈ 0.082 (very low)
-            // At -10 yards: e^(-10/2) ≈ 0.007 (nearly zero)
-            const decayRate = 2; // Controls how quickly value drops
-            distanceValue = Math.exp(distanceGain / decayRate);
-        }
-
-        // --- 2. FIELD CENTER COMPONENT (0 to 1) ---
-        const fieldCenter = 20; // Center width is 20 yards
-        const distanceFromCenter = Math.abs(targetY - fieldCenter);
-        const maxDistanceFromCenter = 20; // Max is at sideline
-        const centerValue = 1 - (distanceFromCenter / maxDistanceFromCenter);
-
-        // --- 3. COMPLETION PROBABILITY (0 to 1) ---
-        const dx = targetX - currentX;
-        const dy = targetY - currentY;
-        const throwDistance = Math.sqrt(dx * dx + dy * dy);
-
-        // Steeper exponential decay for very long throws
-        const completionProb = Math.exp(-throwDistance / 40);
-
-        // --- 4. MARK INFLUENCE (0 to 1) ---
-        // Mark is always on the line from thrower to (0, 40)
-        const markVector = {
-            x: 20 - currentX,  // Vector from thrower to (0, 40)
-            y: 40 - currentY
-        };
-
-        const throwVector = {
-            x: targetX - currentX,
-            y: targetY - currentY
-        };
-
-        // Normalize mark vector (from origin to thrower)
-        const markLength = Math.sqrt(markVector.x * markVector.x + markVector.y * markVector.y);
-        if (markLength > 0) {
-            markVector.x /= markLength;
-            markVector.y /= markLength;
-        }
-
-        // Normalize throw vector
-        const throwLength = Math.sqrt(throwVector.x * throwVector.x + throwVector.y * throwVector.y);
-        if (throwLength > 0) {
-            throwVector.x /= throwLength;
-            throwVector.y /= throwLength;
-        }
-
-        // Dot product gives cos(angle)
-        const dotProduct = markVector.x * throwVector.x + markVector.y * throwVector.y;
-
-        // Cross product gives direction
-        const crossProduct = markVector.x * throwVector.y - markVector.y * throwVector.x;
-
-        // Calculate angle in radians
-        const angle = Math.atan2(crossProduct, dotProduct);
-        const absAngle = Math.abs(angle);
-
-        // Mark heavily influences ±45 degrees (π/4 radians)
-        const highPenaltyZone = Math.PI / 4;  // 45 degrees
-        const fullInfluenceZone = Math.PI / 2; // 90 degrees
-
-        let markPenalty = 1.0;
-
-        if (absAngle < highPenaltyZone) {
-            // Within 45 degrees - SEVERE penalty (90% at center)
-            const influenceFactor = 1 - (absAngle / highPenaltyZone);
-            markPenalty = 1 - (0.9 * influenceFactor); // Up to 90% penalty
-        } else if (absAngle < fullInfluenceZone) {
-            // Between 45-90 degrees - moderate tapering penalty
-            const taperingFactor = (absAngle - highPenaltyZone) / (fullInfluenceZone - highPenaltyZone);
-            markPenalty = 0.1 + (0.9 * taperingFactor);
-        }
-
-        // --- 5. COMBINE ALL FACTORS ---
-        const weights = {
-            distance: 0.30,    // 30% - reward distance
-            center: 0.10,      // 10% - reward central position
-            completion: 0.40,  // 40% - heavily penalize risky throws
-            mark: 0.20         // 20% - heavily penalize throwing into mark
-        };
-
-        let finalValue = (
-            distanceValue * weights.distance +
-            centerValue * weights.center +
-            completionProb * weights.completion +
-            markPenalty * weights.mark
-        );
-
-        // Apply additional penalty multiplier for negative throws
-        if (distanceGain < 0) {
-            // At -5 yards: e^(-5/3) ≈ 0.189
-            // At -10 yards: e^(-10/3) ≈ 0.036
-            const negativeMultiplier = Math.exp(distanceGain / 3);
-            finalValue *= negativeMultiplier;
-        }
-
-        return Math.max(0, Math.min(1, finalValue));
-    }
-
     /**
      * Marking difficulty: how hard it is to throw to (targetX, targetY) given the mark.
      * Uses the same mark center line as throw value (thrower toward (0, 40)).
@@ -285,6 +179,7 @@ class UltimateGame {
         const distanceFromDisc = Math.sqrt(dx * dx + dy * dy);
         let distanceFactor = 1 - (distanceFromDisc / 60)/3;
         if (distanceFactor < 0) distanceFactor = 0;
+        //return ease;
         return 1-((1-ease) * distanceFactor);
 
     }
@@ -310,10 +205,10 @@ class UltimateGame {
         const crossProduct = markVector.x * throwVector.y - markVector.y * throwVector.x;
         const angle = Math.atan2(crossProduct, dotProduct);
         const absAngle = Math.abs(angle); // 0 to PI radians (0° to 180°)
-        // Ease: 0 at 0°, 1 at 90°, then stay 1 for 90–180° (both sides are easy)
-        const halfPi = Math.PI / 2;
-        if (absAngle >= halfPi) return 1;
-        let ease = absAngle / halfPi;
+        // Ease: 0 at 0°, 1 at 45°, then stay 1 for 45–180° (both sides are easy)
+        const quarterPi = Math.PI / 4; // 45 degrees
+        if (absAngle >= quarterPi) return 1;
+        let ease = absAngle / quarterPi;
         return ease;
 
         
@@ -327,18 +222,20 @@ class UltimateGame {
     calculateDifficultyAt(x, y) {
         const dx = x - this.disc.x;
         const dy = y - this.disc.y;
-        const dist = Math.sqrt(dx * dx + dy * dy)-40;
+        const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist <= 0) return 0
         const distSq = dist * dist;
         const difficulty = Math.sqrt(distSq) / 80 // distance^4 — difficulty increases faster
         
         //if (dist <= 2) return 1-((1-difficulty)*.7);
+        //if (1-difficulty > .8) return .2;
         return difficulty;
     }
 
     /**
-     * Value to offense of having the disc at (x, y): 1 = scoring end zone, 0 = own end zone,
-     * in between = progress toward scoring (left = good). Includes slight center-width bonus.
+     * Catch value at (x, y): based on distance from the disc.
+     * High near the disc (easy to catch), falls off with distance.
+     * Uses inverse-distance style decay so the heat map follows the disc.
      */
     calculateCatchValue(x, y) {
         const endZoneDepth = this.field.endZoneDepth;
@@ -346,21 +243,33 @@ class UltimateGame {
         const totalLength = this.field.totalLength;
         // Offense scores at left end zone (low x); own end zone is right (high x)
         const offenseEndZoneEnd = endZoneDepth;
-        const ownEndZoneStart = endZoneDepth + fieldLength;
+        const discVerticalPosition = this.disc.x //endZoneDepth + fieldLength;
 
         if (x <= offenseEndZoneEnd) {
             return 1; // In scoring end zone: always 1
         }
-        if (x >= ownEndZoneStart) {
+        if (x >= discVerticalPosition) {
             return 0; // In own end zone
         }
         // In field: 1 at offense end, 0 at own end
-        const progress = (ownEndZoneStart - x) / fieldLength;
+        const progress = (discVerticalPosition - x) / fieldLength;
         let positionValue = Math.max(0, Math.min(1, progress));
+        positionValue = positionValue/2 +1/2;
         // Slight bonus for being near center width (easier to advance)
+        // Middle 20 yards (10 yards from each sideline) are equally valuable
+        // Only the outer 10 yards from each sideline have reduced value
         const fieldCenterY = this.field.fieldWidth / 2;
         const distanceFromCenter = Math.abs(y - fieldCenterY);
-        const centerBonus = 1 - (distanceFromCenter / (this.field.fieldWidth / 2)) * .5 - .7 * (distanceFromCenter ** 4 / (this.field.fieldWidth / 2) ** 4);
+        const sideBoundary = 10; // 10 yards from sideline
+        
+        let centerBonus = 1;
+        if (distanceFromCenter > (fieldCenterY - sideBoundary)) {
+            // We're in the outer 10 yards from a sideline
+            const distanceFromSideline = fieldCenterY - distanceFromCenter;
+            const normalizedDist = distanceFromSideline / sideBoundary; // 0 at sideline, 1 at boundary
+            centerBonus = 1 - (1 - normalizedDist) * .5 - .7 * ((1 - normalizedDist) ** 8);
+        }
+        
         return Math.max(0, Math.min(1, positionValue * centerBonus));
     }
 
@@ -451,6 +360,7 @@ class UltimateGame {
                     const d = Math.hypot(cellX - p.x, cellY - p.y);
                     if (d < minDefenseDist) minDefenseDist = d;
                 }
+                minDefenseDist += 2;
                 const defenderCloserThanOffense = minOffenseDist >= minDefenseDist;
                 const defenderWithinHalfDiscDistance = minDefenseDist < discToSquare / 2;
                 const fromCloser = defenderCloserThanOffense ? 0 : 1;
@@ -490,7 +400,7 @@ class UltimateGame {
         if (maxDifficulty > 0) {
             for (let x = 0; x < numCellsX; x++) {
                 for (let y = 0; y < numCellsY; y++) {
-                    values[x][y] /= maxDifficulty;
+                    values[x][y] = Math.max(0.2, values[x][y] / maxDifficulty)/2;
                 }
             }
         }
@@ -587,6 +497,160 @@ class UltimateGame {
         };
     }
 
+    /**
+     * Returns the sum of all cell values of the combined heat map using all 4 layers,
+     * combined by product (difficulty inverted to 1-v), pre-normalization (no min-max scale).
+     * Used to evaluate a defender position: lower sum = better defense.
+     */
+    _getCombinedHeatMapSumPreNormalized() {
+        const gridSize = this.heatMapGridSize;
+        const numCellsX = Math.ceil(this.field.totalLength / gridSize);
+        const numCellsY = Math.ceil(this.field.fieldWidth / gridSize);
+
+        const catchLayer = this._getCatchLayer(numCellsX, numCellsY, gridSize);
+        const diffLayer = this._getDifficultyLayer(numCellsX, numCellsY, gridSize);
+        const markingLayer = this._getMarkingDifficultyLayer(numCellsX, numCellsY, gridSize);
+        const coverageLayer = this._getCoverageLayer(numCellsX, numCellsY, gridSize);
+
+        if (!markingLayer) return Infinity; // no thrower
+
+        let sum = 0;
+        for (let x = 0; x < numCellsX; x++) {
+            for (let y = 0; y < numCellsY; y++) {
+                const catchVal = catchLayer.values[x][y];
+                const diffVal = diffLayer.values[x][y];
+                const markVal = markingLayer.values[x][y];
+                const covVal = coverageLayer.values[x][y];
+                const product = catchVal * (1 - diffVal) * markVal * covVal;
+                sum += product;
+            }
+        }
+        return sum;
+    }
+
+    /**
+     * Public getter for the pre-normalization combined heat map sum (all 4 layers).
+     * Returns null if there is no thrower (no marking layer).
+     */
+    getCombinedHeatMapSumPreNormalized() {
+        const sum = this._getCombinedHeatMapSumPreNormalized();
+        return sum === Infinity ? null : sum;
+    }
+
+    /**
+     * Finds the position for the downfield defender that minimizes the sum of the
+     * combined heat map (all 4 layers, pre-normalization) within a 5 yard radius
+     * of the offender (offensive player without the disc), then moves the defender there.
+     */
+    positionDefenderOptimal() {
+        const downfieldDefender = this.players.find(p => p.isDefender && !p.isMark);
+        if (!downfieldDefender) return;
+
+        const offender = this.players.find(p => !p.isDefender && !p.hasDisc);
+        if (!offender) return;
+
+        const radiusYards = 5;
+        const radiusSq = radiusYards * radiusYards;
+
+        const gridSize = this.heatMapGridSize;
+        const numCellsX = Math.ceil(this.field.totalLength / gridSize);
+        const numCellsY = Math.ceil(this.field.fieldWidth / gridSize);
+
+        let bestSum = Infinity;
+        let bestX = downfieldDefender.x;
+        let bestY = downfieldDefender.y;
+
+        for (let xi = 0; xi < numCellsX; xi++) {
+            for (let yi = 0; yi < numCellsY; yi++) {
+                const cellCenterX = xi * gridSize + gridSize / 2;
+                const cellCenterY = yi * gridSize + gridSize / 2;
+                const dx = cellCenterX - offender.x;
+                const dy = cellCenterY - offender.y;
+                if (dx * dx + dy * dy > radiusSq) continue;
+
+                const clampedX = Math.max(0, Math.min(this.field.totalLength, cellCenterX));
+                const clampedY = Math.max(0, Math.min(this.field.fieldWidth, cellCenterY));
+
+                this.movePlayerTo(downfieldDefender, clampedX, clampedY);
+                const sum = this._getCombinedHeatMapSumPreNormalized();
+                if (sum < bestSum) {
+                    bestSum = sum;
+                    bestX = clampedX;
+                    bestY = clampedY;
+                }
+            }
+        }
+
+        this.movePlayerTo(downfieldDefender, bestX, bestY);
+    }
+
+    /**
+     * Finds the highest value square in the combined heat map (all 4 layers)
+     * and moves the offender (offensive player without disc) to that position.
+     */
+    positionOffenderOptimal() {
+        const offender = this.players.find(p => !p.isDefender && !p.hasDisc);
+        if (!offender) return;
+
+        const gridSize = this.heatMapGridSize;
+        const numCellsX = Math.ceil(this.field.totalLength / gridSize);
+        const numCellsY = Math.ceil(this.field.fieldWidth / gridSize);
+
+        // Get all 4 layers
+        const catchLayer = this._getCatchLayer(numCellsX, numCellsY, gridSize);
+        const diffLayer = this._getDifficultyLayer(numCellsX, numCellsY, gridSize);
+        const markingLayer = this._getMarkingDifficultyLayer(numCellsX, numCellsY, gridSize);
+        const coverageLayer = this._getCoverageLayer(numCellsX, numCellsY, gridSize);
+
+        if (!markingLayer) return; // no thrower
+
+        // Find the cell with the highest combined value
+        let maxValue = -Infinity;
+        let bestX = offender.x;
+        let bestY = offender.y;
+
+        for (let x = 0; x < numCellsX; x++) {
+            for (let y = 0; y < numCellsY; y++) {
+                const catchVal = catchLayer.values[x][y];
+                const diffVal = diffLayer.values[x][y];
+                const markVal = markingLayer.values[x][y];
+                const covVal = coverageLayer.values[x][y];
+                // Combined product (difficulty inverted like in calculateHeatMap)
+                const product = catchVal * (1 - diffVal) * markVal * covVal;
+
+                if (product > maxValue) {
+                    maxValue = product;
+                    bestX = x * gridSize + gridSize / 2;
+                    bestY = y * gridSize + gridSize / 2;
+                }
+            }
+        }
+
+        // Clamp to field bounds and move the offender
+        const clampedX = Math.max(0, Math.min(this.field.totalLength, bestX));
+        const clampedY = Math.max(0, Math.min(this.field.fieldWidth, bestY));
+        this.movePlayerTo(offender, clampedX, clampedY);
+    }
+
+    /**
+     * Moves the offender to the middle of the field, 20 yards downfield from the disc (left).
+     * This is a "go to stack" position.
+     */
+    positionOffenderStack() {
+        const offender = this.players.find(p => !p.isDefender && !p.hasDisc);
+        if (!offender) return;
+
+        // Position 20 yards downfield from disc (left side = lower x coordinate)
+        const stackX = this.disc.x - 20;
+        // Middle of the field
+        const stackY = this.field.fieldWidth / 2;
+
+        // Clamp to field bounds and move the offender
+        const clampedX = Math.max(0, Math.min(this.field.totalLength, stackX));
+        const clampedY = Math.max(0, Math.min(this.field.fieldWidth, stackY));
+        this.movePlayerTo(offender, clampedX, clampedY);
+    }
+
     updateHeatMap() {
         const heatMapData = this.calculateHeatMap();
         this.field.setHeatMapData(heatMapData);
@@ -602,9 +666,6 @@ class UltimateGame {
 
         // Render players
         this.players.forEach(player => {
-            // Skip mark defenders - they will be rendered as lines
-            if (player.isMark) return;
-
             let radius = player.hasDisc ? 6 : 4;
             const isSelected = this.selectedPlayer === player;
 
@@ -614,43 +675,12 @@ class UltimateGame {
             }
         });
 
-        // Draw mark as perpendicular line
-        const playerWithDisc = this.players.find(p => p.hasDisc);
-        const markDefender = this.players.find(p => p.isMark);
-        if (playerWithDisc && markDefender) {
-            // Calculate vector from player with disc to (0, 40)
-            const dx = 20 - playerWithDisc.x;
-            const dy = 40 - playerWithDisc.y;
-            const length = Math.sqrt(dx * dx + dy * dy);
-
-            // Normalize the vector
-            const normX = dx / length;
-            const normY = dy / length;
-
-            // Perpendicular vector (rotate 90 degrees)
-            const perpX = -normY;
-            const perpY = normX;
-
-            // Draw line perpendicular to the player-corner line, centered at mark defender position
-            const markLineLength = 3; // yards
-            const x1 = markDefender.x - perpX * markLineLength / 2;
-            const y1 = markDefender.y - perpY * markLineLength / 2;
-            const x2 = markDefender.x + perpX * markLineLength / 2;
-            const y2 = markDefender.y + perpY * markLineLength / 2;
-
-            this.field.drawLine(x1, y1, x2, y2, markDefender.color, 3, false);
-        }
-
-        // Render disc
-        if (!this.disc.holder) {
-            this.field.drawDisc(this.disc.x, this.disc.y);
-
-            // Draw disc trajectory if in flight
-            if (this.disc.inFlight) {
-                const targetX = this.disc.x + this.disc.vx * 2;
-                const targetY = this.disc.y + this.disc.vy * 2;
-                this.field.drawLine(this.disc.x, this.disc.y, targetX, targetY, '#fbbf24', 2, true);
-            }
+        // Render disc (position tied to holder in update() when not in flight)
+        this.field.drawDisc(this.disc.x, this.disc.y);
+        if (this.disc.inFlight) {
+            const targetX = this.disc.x + this.disc.vx * 2;
+            const targetY = this.disc.y + this.disc.vy * 2;
+            this.field.drawLine(this.disc.x, this.disc.y, targetX, targetY, '#fbbf24', 2, true);
         }
     }
 

@@ -20,6 +20,9 @@
                 <button id="heatMapCoverageBtn" class="heat-map-toggle" title="Coverage: green = offense closer (open), red = defender closer (covered)">Coverage</button>
                 <span class="heat-map-label">Normalize:</span>
                 <button id="normalizeBtn" class="heat-map-toggle" title="Scale heat map values to 0–1 for full color range">Normalize</button>
+                <button id="positionDefenderBtn" title="Move downfield defender to the square that minimizes combined heat map sum (all 4 layers, pre-normalization)">Position defender</button>
+                <button id="positionOffenderBtn" title="Move offender to the square with the highest value in combined heat map (all 4 layers)">Position offender</button>
+                <button id="goToStackBtn" title="Move offender to the middle of the field, 20 yards downfield from the disc">Go to stack</button>
                 <div class="info">
                     <span>Field: 70 x 40 yards</span>
                     <span>End Zones: 20 yards each</span>
@@ -36,7 +39,7 @@
             <div id="debugInfo">
                 <p>Mouse Position: <span id="mousePos">-</span></p>
                 <p>Field Coordinates: <span id="fieldCoords">-</span></p>
-                <p>Square Value: <span id="squareValue">-</span></p>
+                <p>Square Value: <span id="squareValue">-</span> · Heat map sum (pre-norm): <span id="heatMapSum">-</span></p>
             </div>
         </div>
     </div>

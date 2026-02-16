@@ -92,6 +92,21 @@ function setupEventListeners() {
         updateNormalizeButtonState();
     });
 
+    // Position defender: minimize combined heat map sum
+    document.getElementById('positionDefenderBtn').addEventListener('click', () => {
+        game.positionDefenderOptimal();
+    });
+
+    // Position offender: maximize combined heat map value
+    document.getElementById('positionOffenderBtn').addEventListener('click', () => {
+        game.positionOffenderOptimal();
+    });
+
+    // Go to stack: move offender to middle of field, 20 yards downfield from disc
+    document.getElementById('goToStackBtn').addEventListener('click', () => {
+        game.positionOffenderStack();
+    });
+
     // Canvas click: select player or place selected player
     field.canvas.addEventListener('click', (e) => {
         const rect = field.canvas.getBoundingClientRect();
@@ -135,6 +150,11 @@ function setupEventListeners() {
             }
         }
         document.getElementById('squareValue').textContent = squareValueText;
+
+        // Pre-normalization combined heat map sum (all 4 layers)
+        const heatMapSum = game.getCombinedHeatMapSumPreNormalized();
+        document.getElementById('heatMapSum').textContent =
+            heatMapSum != null ? heatMapSum.toFixed(3) : '-';
     });
     
     // Keyboard controls

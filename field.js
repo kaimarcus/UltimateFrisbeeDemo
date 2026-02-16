@@ -272,33 +272,32 @@ class UltimateField {
     }
     
     valueToColor(value) {
-        // Color gradient: low value (0) = red, high value (1) = green
-        // Using smooth gradient: red -> orange -> yellow -> green
-        
-        const alpha = 0.6; // Transparency so we can still see the field
-        
-        if (value < 0.33) {
-            // Red to orange (0 to 0.33)
-            const t = value / 0.33;
-            const r = 255;
-            const g = Math.floor(0 + t * 165);
-            const b = 0;
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        } else if (value < 0.67) {
-            // Orange to yellow (0.33 to 0.67)
-            const t = (value - 0.33) / 0.34;
-            const r = 255;
-            const g = Math.floor(165 + t * 90);
-            const b = 0;
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        } else {
-            // Yellow to green (0.67 to 1)
-            const t = (value - 0.67) / 0.33;
-            const r = Math.floor(255 - t * 255);
-            const g = 255;
-            const b = 0;
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
+        // Fine gradient: many shades so close values are easy to tell apart.
+        // Low (0) = dark red -> red -> orange -> yellow -> lime -> green (1)
+        const alpha = 0.6;
+        // 10 stops for clear separation: 0, 0.1, 0.2, ... 1.0
+        const stops = [
+            { v: 0,   r: 128, g: 0,   b: 0 },   // dark red
+            { v: 0.1, r: 200, g: 0,   b: 0 },   // red
+            { v: 0.2, r: 255, g: 80,  b: 0 },   // red-orange
+            { v: 0.3, r: 255, g: 140, b: 0 },   // orange
+            { v: 0.4, r: 255, g: 180, b: 0 },   // orange-yellow
+            { v: 0.5, r: 255, g: 220, b: 0 },   // yellow
+            { v: 0.6, r: 220, g: 255, b: 0 },   // yellow-green
+            { v: 0.7, r: 160, g: 255, b: 60 }, // lime
+            { v: 0.8, r: 80,  g: 255, b: 80 }, // green
+            { v: 0.9, r: 0,   g: 220, b: 80 }, // dark green
+            { v: 1,   r: 0,   g: 180, b: 60 }, // deep green
+        ];
+        let i = 0;
+        while (i < stops.length - 1 && value > stops[i + 1].v) i++;
+        const a = stops[i];
+        const b = stops[i + 1];
+        const t = (value - a.v) / (b.v - a.v);
+        const r = Math.round(a.r + t * (b.r - a.r));
+        const g = Math.round(a.g + t * (b.g - a.g));
+        const bl = Math.round(a.b + t * (b.b - a.b));
+        return `rgba(${r}, ${g}, ${bl}, ${alpha})`;
     }
     
     // Helper method to draw objects on the field
@@ -312,6 +311,18 @@ class UltimateField {
         this.ctx.strokeStyle = '#000000';
         this.ctx.lineWidth = 1;
         this.ctx.stroke();
+    }
+
+    drawPlayerSelectionRing(x, y, radiusPixels = 12) {
+        const pos = this.fieldToCanvas(x, y);
+        this.ctx.beginPath();
+        this.ctx.arc(pos.x, pos.y, radiusPixels, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'transparent';
+        this.ctx.strokeStyle = '#fbbf24';
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([6, 4]);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
     }
     
     drawDisc(x, y, radius = 3) {

@@ -17,7 +17,12 @@ class UltimateGame {
 
         // Heat map settings
         this.heatMapGridSize = 1; // 1 yard per cell
-        this.heatMapModesEnabled = { catch: false, difficulty: false, markingDifficulty: false };
+        this.heatMapModesEnabled = { catch: false, difficulty: false, markingDifficulty: false, coverage: false };
+        this.heatMapNormalize = true; // when true, scale combined values to 0–1 for coloring
+
+        // Player selection for click-to-move
+        this.selectedPlayer = null;
+        this.clickHitRadiusYards = 2; // yards - how close click must be to select a player
 
         this.initialize();
     }
@@ -350,8 +355,46 @@ class UltimateGame {
         // Slight bonus for being near center width (easier to advance)
         const fieldCenterY = this.field.fieldWidth / 2;
         const distanceFromCenter = Math.abs(y - fieldCenterY);
-        const centerBonus = 1 - (distanceFromCenter / (this.field.fieldWidth / 2)) * 0 - 1 * (distanceFromCenter ** 4 / (this.field.fieldWidth / 2) ** 4);
+        const centerBonus = 1 - (distanceFromCenter / (this.field.fieldWidth / 2)) * .5 - 1 * (distanceFromCenter ** 4 / (this.field.fieldWidth / 2) ** 4);
         return Math.max(0, Math.min(1, positionValue * centerBonus));
+    }
+
+    /**
+     * Find the topmost player at field coordinates (for click hit-test).
+     * Returns the last matching player in the list (drawn on top) or null.
+     */
+    getPlayerAt(fieldX, fieldY) {
+        const r = this.clickHitRadiusYards;
+        // Check in reverse order so we pick the one drawn on top
+        for (let i = this.players.length - 1; i >= 0; i--) {
+            const p = this.players[i];
+            const dx = fieldX - p.x;
+            const dy = fieldY - p.y;
+            if (dx * dx + dy * dy <= r * r) return p;
+        }
+        return null;
+    }
+
+    selectPlayer(player) {
+        this.selectedPlayer = player;
+    }
+
+    clearSelection() {
+        this.selectedPlayer = null;
+    }
+
+    /**
+     * Move a player to field coordinates (clamped to field bounds).
+     */
+    movePlayerTo(player, fieldX, fieldY) {
+        const x = Math.max(0, Math.min(this.field.totalLength, fieldX));
+        const y = Math.max(0, Math.min(this.field.fieldWidth, fieldY));
+        player.x = x;
+        player.y = y;
+        if (player.hasDisc && this.disc.holder === player) {
+            this.disc.x = x;
+            this.disc.y = y;
+        }
     }
 
     setHeatMapModeEnabled(mode, enabled) {
@@ -365,7 +408,52 @@ class UltimateGame {
     }
 
     isAnyHeatMapEnabled() {
-        return this.heatMapModesEnabled.catch || this.heatMapModesEnabled.difficulty || this.heatMapModesEnabled.markingDifficulty;
+        return this.heatMapModesEnabled.catch || this.heatMapModesEnabled.difficulty || this.heatMapModesEnabled.markingDifficulty || this.heatMapModesEnabled.coverage;
+    }
+
+    getHeatMapNormalize() {
+        return this.heatMapNormalize;
+    }
+
+    setHeatMapNormalize(enabled) {
+        this.heatMapNormalize = !!enabled;
+    }
+
+    /**
+     * Coverage layer: for each square, the lesser of:
+     * - 0 if closest defender is closer than closest offense, else 1 (open).
+     * - 0.5 if closest defender's distance to square < half the distance from disc to square, else 1.
+     * A square is covered (0) when defender is closer; half-disc gives 0.5; in overlapping areas the lesser value is used.
+     */
+    _getCoverageLayer(numCellsX, numCellsY, gridSize) {
+        // Exclude thrower (has disc) and mark from coverage so we see downfield open/covered
+        const offense = this.players.filter(p => !p.isDefender && !p.hasDisc);
+        const defense = this.players.filter(p => p.isDefender && !p.isMark);
+        const values = [];
+        for (let x = 0; x < numCellsX; x++) {
+            values[x] = [];
+            for (let y = 0; y < numCellsY; y++) {
+                const cellX = x * gridSize + gridSize / 2;
+                const cellY = y * gridSize + gridSize / 2;
+                const discToSquare = Math.hypot(cellX - this.disc.x, cellY - this.disc.y);
+                let minOffenseDist = Infinity;
+                let minDefenseDist = Infinity;
+                for (const p of offense) {
+                    const d = Math.hypot(cellX - p.x, cellY - p.y);
+                    if (d < minOffenseDist) minOffenseDist = d;
+                }
+                for (const p of defense) {
+                    const d = Math.hypot(cellX - p.x, cellY - p.y);
+                    if (d < minDefenseDist) minDefenseDist = d;
+                }
+                const defenderCloserThanOffense = minOffenseDist >= minDefenseDist;
+                const defenderWithinHalfDiscDistance = minDefenseDist < discToSquare / 2;
+                const fromCloser = defenderCloserThanOffense ? 0 : 1;
+                const fromHalfDisc = defenderWithinHalfDiscDistance ? 0.5 : 1;
+                values[x][y] = Math.min(fromCloser, fromHalfDisc);
+            }
+        }
+        return { values };
     }
 
     _getCatchLayer(numCellsX, numCellsY, gridSize) {
@@ -441,6 +529,9 @@ class UltimateGame {
             const layer = this._getMarkingDifficultyLayer(numCellsX, numCellsY, gridSize);
             if (layer) layers.push({ key: 'markingDifficulty', ...layer });
         }
+        if (enabled.coverage) {
+            layers.push({ key: 'coverage', ...this._getCoverageLayer(numCellsX, numCellsY, gridSize) });
+        }
 
         if (layers.length === 0) return null;
 
@@ -463,20 +554,22 @@ class UltimateGame {
                 values[x][y] = product;
             }
         }
-        // Normalize so highest value is 1 and lowest is 0
-        let min = Infinity, max = -Infinity;
-        for (let x = 0; x < numCellsX; x++) {
-            for (let y = 0; y < numCellsY; y++) {
-                const v = values[x][y];
-                if (v < min) min = v;
-                if (v > max) max = v;
-            }
-        }
-        const range = max - min;
-        if (range > 0) {
+        // Optionally normalize so highest value is 1 and lowest is 0
+        if (this.heatMapNormalize) {
+            let min = Infinity, max = -Infinity;
             for (let x = 0; x < numCellsX; x++) {
                 for (let y = 0; y < numCellsY; y++) {
-                    values[x][y] = (values[x][y] - min) / range;
+                    const v = values[x][y];
+                    if (v < min) min = v;
+                    if (v > max) max = v;
+                }
+            }
+            const range = max - min;
+            if (range > 0) {
+                for (let x = 0; x < numCellsX; x++) {
+                    for (let y = 0; y < numCellsY; y++) {
+                        values[x][y] = (values[x][y] - min) / range;
+                    }
                 }
             }
         }
@@ -508,8 +601,12 @@ class UltimateGame {
             if (player.isMark) return;
 
             let radius = player.hasDisc ? 6 : 4;
+            const isSelected = this.selectedPlayer === player;
 
             this.field.drawPlayer(player.x, player.y, player.color, radius);
+            if (isSelected) {
+                this.field.drawPlayerSelectionRing(player.x, player.y, Math.max(radius + 4, 10));
+            }
         });
 
         // Draw mark as perpendicular line
@@ -564,6 +661,7 @@ class UltimateGame {
 
     reset() {
         this.stop();
+        this.selectedPlayer = null;
         this.players = [];
         this.disc = null;
         this.team1Score = 0;

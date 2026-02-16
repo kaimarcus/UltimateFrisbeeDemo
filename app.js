@@ -47,6 +47,7 @@ function setupEventListeners() {
     const heatMapCatchBtn = document.getElementById('heatMapCatchBtn');
     const heatMapDifficultyBtn = document.getElementById('heatMapDifficultyBtn');
     const heatMapMarkingDifficultyBtn = document.getElementById('heatMapMarkingDifficultyBtn');
+    const heatMapCoverageBtn = document.getElementById('heatMapCoverageBtn');
 
     const updateHeatMapButtonStates = () => {
         const enabled = game.getHeatMapModesEnabled();
@@ -56,6 +57,8 @@ function setupEventListeners() {
         heatMapDifficultyBtn.textContent = enabled.difficulty ? 'Difficulty On' : 'Difficulty';
         heatMapMarkingDifficultyBtn.classList.toggle('active', enabled.markingDifficulty);
         heatMapMarkingDifficultyBtn.textContent = enabled.markingDifficulty ? 'Marking On' : 'Marking';
+        heatMapCoverageBtn.classList.toggle('active', enabled.coverage);
+        heatMapCoverageBtn.textContent = enabled.coverage ? 'Coverage On' : 'Coverage';
         field.setHeatMapVisible(game.isAnyHeatMapEnabled());
     };
 
@@ -71,7 +74,40 @@ function setupEventListeners() {
         game.setHeatMapModeEnabled('markingDifficulty', !game.getHeatMapModesEnabled().markingDifficulty);
         updateHeatMapButtonStates();
     });
-    
+    heatMapCoverageBtn.addEventListener('click', () => {
+        game.setHeatMapModeEnabled('coverage', !game.getHeatMapModesEnabled().coverage);
+        updateHeatMapButtonStates();
+    });
+
+    // Normalize toggle: scale heat map values to 0–1 when on
+    const normalizeBtn = document.getElementById('normalizeBtn');
+    const updateNormalizeButtonState = () => {
+        const on = game.getHeatMapNormalize();
+        normalizeBtn.classList.toggle('active', on);
+        normalizeBtn.textContent = on ? 'Normalize On' : 'Normalize';
+    };
+    updateNormalizeButtonState();
+    normalizeBtn.addEventListener('click', () => {
+        game.setHeatMapNormalize(!game.getHeatMapNormalize());
+        updateNormalizeButtonState();
+    });
+
+    // Canvas click: select player or place selected player
+    field.canvas.addEventListener('click', (e) => {
+        const rect = field.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const fieldCoords = field.canvasToField(x, y);
+
+        if (game.selectedPlayer) {
+            game.movePlayerTo(game.selectedPlayer, fieldCoords.x, fieldCoords.y);
+            game.clearSelection();
+        } else {
+            const player = game.getPlayerAt(fieldCoords.x, fieldCoords.y);
+            if (player) game.selectPlayer(player);
+        }
+    });
+
     // Mouse move - show coordinates
     field.canvas.addEventListener('mousemove', (e) => {
         const rect = field.canvas.getBoundingClientRect();
@@ -122,6 +158,7 @@ function setupEventListeners() {
                 game.setHeatMapModeEnabled('catch', false);
                 game.setHeatMapModeEnabled('difficulty', false);
                 game.setHeatMapModeEnabled('markingDifficulty', false);
+                game.setHeatMapModeEnabled('coverage', false);
                 updateHeatMapButtonStates();
                 break;
         }

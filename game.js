@@ -585,8 +585,9 @@ class UltimateGame {
     }
 
     /**
-     * Finds the highest value square in the combined heat map (all 4 layers)
-     * and moves the offender (offensive player without disc) to that position.
+     * Randomly selects a square from the combined heat map (all 4 layers) with
+     * probability proportional to the square's pre-normalized value, and moves 
+     * the offender (offensive player without disc) to that position.
      */
     positionOffenderOptimal() {
         const offender = this.players.find(p => !p.isDefender && !p.hasDisc);
@@ -604,10 +605,9 @@ class UltimateGame {
 
         if (!markingLayer) return; // no thrower
 
-        // Find the cell with the highest combined value
-        let maxValue = -Infinity;
-        let bestX = offender.x;
-        let bestY = offender.y;
+        // Build array of all squares with their values and positions
+        const squares = [];
+        let totalValue = 0;
 
         for (let x = 0; x < numCellsX; x++) {
             for (let y = 0; y < numCellsY; y++) {
@@ -618,11 +618,29 @@ class UltimateGame {
                 // Combined product (difficulty inverted like in calculateHeatMap)
                 const product = catchVal * (1 - diffVal) * markVal * covVal;
 
-                if (product > maxValue) {
-                    maxValue = product;
-                    bestX = x * gridSize + gridSize / 2;
-                    bestY = y * gridSize + gridSize / 2;
-                }
+                squares.push({
+                    x: x * gridSize + gridSize / 2,
+                    y: y * gridSize + gridSize / 2,
+                    value: product
+                });
+                totalValue += product;
+            }
+        }
+
+        if (totalValue <= 0) return; // No valid squares
+
+        // Weighted random selection
+        const random = Math.random() * totalValue;
+        let cumulativeValue = 0;
+        let bestX = offender.x;
+        let bestY = offender.y;
+
+        for (const square of squares) {
+            cumulativeValue += square.value;
+            if (cumulativeValue >= random) {
+                bestX = square.x;
+                bestY = square.y;
+                break;
             }
         }
 

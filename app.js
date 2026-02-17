@@ -106,9 +106,13 @@ function setupEventListeners() {
         await game.positionDefenderOptimal('2');
     });
 
-    // Position offender: maximize combined heat map value (async — calls Rust backend)
-    document.getElementById('positionOffenderBtn').addEventListener('click', async () => {
-        await game.positionOffenderOptimal();
+    // Position offender 1
+    document.getElementById('positionOffender1Btn').addEventListener('click', async () => {
+        await game.positionOffenderOptimal('1');
+    });
+    // Position offender 2
+    document.getElementById('positionOffender2Btn').addEventListener('click', async () => {
+        await game.positionOffenderOptimal('2');
     });
 
     // Go to stack: move offender to middle of field, 20 yards downfield from disc

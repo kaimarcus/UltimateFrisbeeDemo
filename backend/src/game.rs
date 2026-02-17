@@ -86,18 +86,20 @@ pub fn position_defender_optimal(
     Some((best_x, best_y))
 }
 
-/// Move the offender (player without disc, not a defender) to a cell sampled
-/// from the combined heat map with probability proportional to each cell's
-/// pre-normalised product value — weighted-random so behaviour is not always
-/// identical.
+/// Move the offender with the given label to a cell sampled from the combined
+/// heat map with probability proportional to each cell's pre-normalised product
+/// value — weighted-random so behaviour is not always identical.
 ///
-/// Returns the new `(x, y)` position, or `None` when there is no offender or
-/// no thrower.
-pub fn position_offender_optimal(gs: &mut GameState, grid_size: f64) -> Option<(f64, f64)> {
-    let offender_idx = gs
-        .players
-        .iter()
-        .position(|p| !p.is_defender && !p.has_disc)?;
+/// Returns the new `(x, y)` position, or `None` when there is no offender with
+/// that label or no thrower.
+pub fn position_offender_optimal(
+    gs: &mut GameState,
+    grid_size: f64,
+    offender_label: &str,
+) -> Option<(f64, f64)> {
+    let offender_idx = gs.players.iter().position(|p| {
+        !p.is_defender && !p.has_disc && p.label.as_deref() == Some(offender_label)
+    })?;
 
     let field = gs.field.clone();
     let disc = &gs.disc;

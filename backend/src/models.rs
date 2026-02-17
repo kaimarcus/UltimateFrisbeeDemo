@@ -114,6 +114,16 @@ pub struct PositionDefenderRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionOffenderRequest {
+    pub game_state: GameState,
+    pub grid_size: f64,
+    /// Label of the offender to position (e.g. "1", "2"); that offender is
+    /// moved to a cell sampled from the combined heat map.
+    pub offender_label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionResponse {
     pub x: f64,
     pub y: f64,

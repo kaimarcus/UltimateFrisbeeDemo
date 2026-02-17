@@ -6,7 +6,7 @@ use crate::game::{position_defender_optimal, position_offender_optimal, position
 use crate::heatmap::{calculate_heat_map, combined_heat_map_sum};
 use crate::models::{
     HeatMapData, HeatMapRequest, HeatMapSumRequest, HeatMapSumResponse, PositionDefenderRequest,
-    PositionRequest, PositionResponse,
+    PositionOffenderRequest, PositionRequest, PositionResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -52,14 +52,14 @@ pub async fn position_defender_handler(
 
 /// `POST /api/position-offender`
 ///
-/// Sample a position from the combined heat map with probability proportional
-/// to each cell's value and return it.  Returns `null` when no thrower or
-/// offender is present.
+/// Body must include `offenderLabel` (e.g. "1", "2").  Moves that offender to
+/// a cell sampled from the combined heat map.  Returns `null` when no thrower
+/// or matching offender is present.
 pub async fn position_offender_handler(
-    Json(req): Json<PositionRequest>,
+    Json(req): Json<PositionOffenderRequest>,
 ) -> Json<Option<PositionResponse>> {
     let mut gs = req.game_state;
-    let result = position_offender_optimal(&mut gs, req.grid_size);
+    let result = position_offender_optimal(&mut gs, req.grid_size, &req.offender_label);
     Json(result.map(|(x, y)| PositionResponse { x, y }))
 }
 

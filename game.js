@@ -327,22 +327,25 @@ class UltimateGame {
     }
 
     /**
-     * Ask the backend for an optimal (weighted-random) offender position
-     * and move the offender there.
+     * Ask the backend for an optimal (weighted-random) position for the
+     * offender with the given label and move that offender there.
      */
-    async positionOffenderOptimal() {
+    async positionOffenderOptimal(offenderLabel) {
         try {
             const res = await fetch(`${this.apiBase}/position-offender`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    gameState: this._toApiGameState(),
-                    gridSize:  this.heatMapGridSize,
+                    gameState:    this._toApiGameState(),
+                    gridSize:    this.heatMapGridSize,
+                    offenderLabel: String(offenderLabel),
                 }),
             });
             const data = await res.json();
             if (data) {
-                const offender = this.players.find(p => !p.isDefender && !p.hasDisc);
+                const offender = this.players.find(
+                    p => !p.isDefender && !p.hasDisc && p.label === String(offenderLabel)
+                );
                 if (offender) {
                     offender.x = data.x;
                     offender.y = data.y;

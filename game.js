@@ -65,18 +65,17 @@ class UltimateGame {
     }
 
     createExamplePlayers() {
+        // Thrower (has disc)
         this.players.push({
             id: 'offense_1', team: 1, x: 80, y: 15,
             color: '#ef4444', hasDisc: true, isDefender: false, isMark: false,
         });
-        this.players.push({
-            id: 'mark_1', team: 2, x: 79, y: 16,
-            color: '#3b82f6', hasDisc: false, isDefender: true, isMark: true,
-        });
+        // Downfield receiver
         this.players.push({
             id: 'offense_2', team: 1, x: 55, y: 15,
             color: '#ef4444', hasDisc: false, isDefender: false, isMark: false,
         });
+        // Downfield defender
         this.players.push({
             id: 'defender_2', team: 2, x: 55, y: 14,
             color: '#3b82f6', hasDisc: false, isDefender: true, isMark: false,
@@ -86,11 +85,9 @@ class UltimateGame {
     createDisc() {
         const holder = this.players.find(p => p.hasDisc) || null;
         this.disc = {
-            x: holder ? holder.x : 80,
-            y: holder ? holder.y : 15,
-            vx: 0, vy: 0,
-            holder,          // local JS reference — kept in sync
-            inFlight: false,
+            x:      holder ? holder.x : 80,
+            y:      holder ? holder.y : 15,
+            holder, // local JS reference — kept in sync with hasDisc flag
         };
     }
 
@@ -114,9 +111,6 @@ class UltimateGame {
             disc: {
                 x:        this.disc.x,
                 y:        this.disc.y,
-                vx:       this.disc.vx,
-                vy:       this.disc.vy,
-                inFlight: this.disc.inFlight,
                 holderId: this.disc.holder ? this.disc.holder.id : null,
             },
             field: {
@@ -195,67 +189,15 @@ class UltimateGame {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Local physics update  (runs every frame — no network round-trip)
-    // Mirrors the logic in backend/src/game.rs `update()`.
+    // Update  (no-op physics — disc is a static marker on its holder)
     // ═══════════════════════════════════════════════════════════════════════
 
-    update(deltaTime) {
-        if (this.disc.inFlight) {
-            this.disc.x += this.disc.vx * deltaTime;
-            this.disc.y += this.disc.vy * deltaTime;
-
-            this.disc.vx *= 0.98;
-            this.disc.vy *= 0.98;
-
-            if (Math.abs(this.disc.vx) < 0.1 && Math.abs(this.disc.vy) < 0.1) {
-                this.disc.inFlight = false;
-                this.disc.vx = 0;
-                this.disc.vy = 0;
-            }
-
-            this.checkCatch();
-            this._markStateDirty(); // disc moved — refresh heat map
-        } else if (this.disc.holder) {
+    update(_deltaTime) {
+        // Keep disc position locked to whoever holds it.
+        if (this.disc.holder) {
             this.disc.x = this.disc.holder.x;
             this.disc.y = this.disc.holder.y;
         }
-    }
-
-    checkCatch() {
-        if (!this.disc.inFlight) return;
-        const catchRadius = 2;
-        for (const player of this.players) {
-            const dx = player.x - this.disc.x;
-            const dy = player.y - this.disc.y;
-            if (dx * dx + dy * dy < catchRadius * catchRadius) {
-                this.catchDisc(player);
-                break;
-            }
-        }
-    }
-
-    catchDisc(player) {
-        this.disc.inFlight = false;
-        this.disc.holder   = player;
-        this.disc.vx       = 0;
-        this.disc.vy       = 0;
-        player.hasDisc     = true;
-        console.log(`Player ${player.id} caught the disc at (${Math.round(player.x)}, ${Math.round(player.y)})`);
-        this._markStateDirty();
-    }
-
-    throwDisc(targetX, targetY, speed = 30) {
-        if (!this.disc.holder) return;
-        const dx = targetX - this.disc.x;
-        const dy = targetY - this.disc.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        this.disc.vx           = (dx / dist) * speed;
-        this.disc.vy           = (dy / dist) * speed;
-        this.disc.inFlight     = true;
-        this.disc.holder.hasDisc = false;
-        this.disc.holder       = null;
-        console.log(`Disc thrown to (${Math.round(targetX)}, ${Math.round(targetY)})`);
-        this._markStateDirty();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -437,11 +379,6 @@ class UltimateGame {
         });
 
         this.field.drawDisc(this.disc.x, this.disc.y);
-        if (this.disc.inFlight) {
-            const tx = this.disc.x + this.disc.vx * 2;
-            const ty = this.disc.y + this.disc.vy * 2;
-            this.field.drawLine(this.disc.x, this.disc.y, tx, ty, '#fbbf24', 2, true);
-        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -462,6 +399,7 @@ class UltimateGame {
         this._cachedHeatMapSum = null;
         this._stateVersion     = 0;
         this._fetchedVersion   = -1;
+        if (this._fetchTimeout) { clearTimeout(this._fetchTimeout); this._fetchTimeout = null; }
         this.initialize();
         this._markStateDirty();
         console.log('Game reset');

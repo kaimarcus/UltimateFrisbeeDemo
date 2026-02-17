@@ -32,9 +32,6 @@ pub struct Player {
 pub struct Disc {
     pub x: f64,
     pub y: f64,
-    pub vx: f64,
-    pub vy: f64,
-    pub in_flight: bool,
     pub holder_id: Option<String>,
 }
 
@@ -109,13 +106,3 @@ pub struct PositionResponse {
     pub y: f64,
 }
 
-// ---------------------------------------------------------------------------
-// Game-update request / response types
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateRequest {
-    pub game_state: GameState,
-    pub delta_time: f64,
-}

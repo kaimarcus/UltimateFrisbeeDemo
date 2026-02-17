@@ -1,5 +1,6 @@
-//! Game-state mutation: physics update, disc throws/catches, and AI
-//! positioning helpers.
+//! AI positioning helpers.
+//! Disc physics and throw/catch logic have been removed; the disc is a static
+//! marker that follows whichever player has it.
 
 use rand::Rng;
 
@@ -13,104 +14,9 @@ use crate::models::GameState;
 // Constants
 // ---------------------------------------------------------------------------
 
-/// Radius (yards) within which a player catches a disc in flight.
-const CATCH_RADIUS_YARDS: f64 = 2.0;
-
-/// Speed multiplier applied to disc velocity each physics step (drag).
-const DISC_DRAG_FACTOR: f64 = 0.98;
-
-/// Velocity (yards/second) below which the disc is considered to have stopped.
-const DISC_STOP_THRESHOLD: f64 = 0.1;
-
 /// Maximum search radius (yards) around the offender when positioning the
 /// downfield defender optimally.
 const DEFENDER_SEARCH_RADIUS_YARDS: f64 = 5.0;
-
-// ---------------------------------------------------------------------------
-// Physics update
-// ---------------------------------------------------------------------------
-
-/// Advance the game simulation by `delta_time` seconds.
-/// * Moves disc if in flight and applies drag.
-/// * Detects catches (any player within `CATCH_RADIUS_YARDS`).
-/// * Keeps disc glued to its holder when not in flight.
-pub fn update(gs: &mut GameState, delta_time: f64) {
-    if gs.disc.in_flight {
-        gs.disc.x += gs.disc.vx * delta_time;
-        gs.disc.y += gs.disc.vy * delta_time;
-
-        gs.disc.vx *= DISC_DRAG_FACTOR;
-        gs.disc.vy *= DISC_DRAG_FACTOR;
-
-        if gs.disc.vx.abs() < DISC_STOP_THRESHOLD && gs.disc.vy.abs() < DISC_STOP_THRESHOLD {
-            gs.disc.in_flight = false;
-            gs.disc.vx = 0.0;
-            gs.disc.vy = 0.0;
-        }
-
-        // Check for catches
-        let disc_x = gs.disc.x;
-        let disc_y = gs.disc.y;
-        let r2 = CATCH_RADIUS_YARDS * CATCH_RADIUS_YARDS;
-        let mut catcher: Option<String> = None;
-
-        for p in &gs.players {
-            let dx = p.x - disc_x;
-            let dy = p.y - disc_y;
-            if dx * dx + dy * dy < r2 {
-                catcher = Some(p.id.clone());
-                break;
-            }
-        }
-
-        if let Some(id) = catcher {
-            gs.disc.in_flight = false;
-            gs.disc.vx = 0.0;
-            gs.disc.vy = 0.0;
-            gs.disc.holder_id = Some(id.clone());
-            for p in &mut gs.players {
-                if p.id == id {
-                    p.has_disc = true;
-                }
-            }
-        }
-    } else if let Some(ref holder_id) = gs.disc.holder_id.clone() {
-        if let Some(holder) = gs.players.iter().find(|p| &p.id == holder_id) {
-            gs.disc.x = holder.x;
-            gs.disc.y = holder.y;
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Disc throw
-// ---------------------------------------------------------------------------
-
-/// Throw the disc from its current position toward `(target_x, target_y)` at
-/// `speed` yards/second.  No-op if nobody currently holds the disc.
-pub fn throw_disc(gs: &mut GameState, target_x: f64, target_y: f64, speed: f64) {
-    // Find the holder's index so we can clear their flag
-    let holder_idx = gs.players.iter().position(|p| p.has_disc);
-    if holder_idx.is_none() && gs.disc.holder_id.is_none() {
-        return;
-    }
-
-    let dx = target_x - gs.disc.x;
-    let dy = target_y - gs.disc.y;
-    let dist = (dx * dx + dy * dy).sqrt();
-    if dist < 0.001 {
-        return;
-    }
-
-    gs.disc.vx = (dx / dist) * speed;
-    gs.disc.vy = (dy / dist) * speed;
-    gs.disc.in_flight = true;
-    gs.disc.holder_id = None;
-
-    if let Some(idx) = holder_idx {
-        gs.players[idx].has_disc = false;
-    }
-}
 
 // ---------------------------------------------------------------------------
 // AI positioning

@@ -17,15 +17,12 @@ async fn main() {
 
     let app = Router::new()
         // Heat-map data
-        .route("/api/heatmap",      post(api::heatmap_handler))
-        .route("/api/heatmap-sum",  post(api::heatmap_sum_handler))
+        .route("/api/heatmap",     post(api::heatmap_handler))
+        .route("/api/heatmap-sum", post(api::heatmap_sum_handler))
         // Positioning helpers
         .route("/api/position-defender", post(api::position_defender_handler))
         .route("/api/position-offender", post(api::position_offender_handler))
         .route("/api/position-stack",    post(api::position_stack_handler))
-        // Physics
-        .route("/api/update", post(api::update_handler))
-        .route("/api/throw",  post(api::throw_handler))
         .layer(cors);
 
     let addr = "0.0.0.0:3000";
@@ -39,8 +36,6 @@ async fn main() {
     println!("  POST /api/position-defender");
     println!("  POST /api/position-offender");
     println!("  POST /api/position-stack");
-    println!("  POST /api/update");
-    println!("  POST /api/throw");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     axum::serve(listener, app).await.unwrap();

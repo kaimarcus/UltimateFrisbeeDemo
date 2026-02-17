@@ -92,19 +92,19 @@ function setupEventListeners() {
         updateNormalizeButtonState();
     });
 
-    // Position defender: minimize combined heat map sum
-    document.getElementById('positionDefenderBtn').addEventListener('click', () => {
-        game.positionDefenderOptimal();
+    // Position defender: minimize combined heat map sum (async — calls Rust backend)
+    document.getElementById('positionDefenderBtn').addEventListener('click', async () => {
+        await game.positionDefenderOptimal();
     });
 
-    // Position offender: maximize combined heat map value
-    document.getElementById('positionOffenderBtn').addEventListener('click', () => {
-        game.positionOffenderOptimal();
+    // Position offender: maximize combined heat map value (async — calls Rust backend)
+    document.getElementById('positionOffenderBtn').addEventListener('click', async () => {
+        await game.positionOffenderOptimal();
     });
 
     // Go to stack: move offender to middle of field, 20 yards downfield from disc
-    document.getElementById('goToStackBtn').addEventListener('click', () => {
-        game.positionOffenderStack();
+    document.getElementById('goToStackBtn').addEventListener('click', async () => {
+        await game.positionOffenderStack();
     });
 
     // Canvas click: select player or place selected player

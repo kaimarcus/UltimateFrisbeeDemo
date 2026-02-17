@@ -1,25 +1,39 @@
 {
-    "[plaintext]": {
-        "editor.wordWrap": "on",
-        "editor.fontSize": 14,
-        "editor.lineHeight": 1.6
+    "rust-analyzer.check.command": "clippy",
+    "editor.rulers": [
+        100
+    ],
+    "markdownlint.config": {
+        "MD030": {
+            "ol_multi": 2,
+            "ul_multi": 3
+        },
+        "MD007": {
+            "indent": 4
+        },
+        "MD013": {
+            "line_length": 100,
+            "code_blocks": false,
+            "headings": false,
+            "tables": false
+        }
     },
     "workbench.colorCustomizations": {
-        "tab.activeBorder": "#0d9488",
-        "tab.activeBorderTop": "#0d9488",
-        "tab.activeBackground": "#134e4a",
-        "tab.activeForeground": "#ccfbf1",
-        "tab.border": "#0f766e",
-        "editorGroup.border": "#0d9488",
-        "editorGroupHeader.tabsBorder": "#0d9488",
-        "focusBorder": "#0d9488",
-        "panel.border": "#0d9488",
-        "sideBar.border": "#0d9488",
-        "activityBar.border": "#0d9488",
-        "statusBar.border": "#0d9488",
-        "editorGroupHeader.border": "#0d9488",
-        "sash.hoverBorder": "#0d9488",
-        "titleBar.border": "#0d9488"
+        "tab.activeBorder": "#a855f7",
+        "tab.activeBorderTop": "#a855f7",
+        "tab.activeBackground": "#2d1b4e",
+        "tab.activeForeground": "#e9d5ff",
+        "tab.border": "#4c1d95",
+        "editorGroup.border": "#a855f7",
+        "editorGroupHeader.tabsBorder": "#a855f7",
+        "focusBorder": "#a855f7",
+        "panel.border": "#a855f7",
+        "sideBar.border": "#a855f7",
+        "activityBar.border": "#a855f7",
+        "statusBar.border": "#a855f7",
+        "editorGroupHeader.border": "#a855f7",
+        "sash.hoverBorder": "#a855f7",
+        "titleBar.border": "#a855f7"
     },
     "window.titleBarStyle": "custom",
     "workbench.editor.showTabs": "multiple"

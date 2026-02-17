@@ -36,11 +36,27 @@ const CATCH_SIDELINE_STEEP_COEFF: f64 = 0.7;
 /// very close to the sideline.
 const CATCH_SIDELINE_EXPONENT: f64 = 8.0;
 
+/// Passes shorter than this Euclidean distance (yards) from the disc have
+/// near-zero catch value.  Value ramps from 0 at 0 yards up to the full
+/// positional value at this distance.
+const CATCH_MIN_PASS_DISTANCE_YARDS: f64 = 5.0;
+
+/// Exponent applied to the short-pass ramp.  Higher → value stays closer to
+/// zero for more of the range below MIN_PASS_DISTANCE (3 → value ≈ 0.008
+/// at 1 yd, 0.22 at 3 yds, 0.51 at 4 yds before reaching 1.0 at 5 yds).
+const CATCH_SHORT_PASS_EXPONENT: f64 = 3.0;
+
+/// Throws further than this many yards behind the disc (increasing x) have
+/// zero catch value.  The same polynomial curve used for the sideline penalty
+/// is applied as the throwback distance approaches this limit.
+const CATCH_MAX_THROWBACK_YARDS: f64 = 10.0;
+
 // ============================================================================
 // DIFFICULTY LAYER CONSTANTS
 // How hard is it to throw to this spot (based on throw distance)?
 // ============================================================================
 
+/// FIX Not really an accurate description.
 /// A throw of this many yards maps to a raw difficulty of 1.0.
 /// Shorter throws scale linearly below this value.
 const DIFFICULTY_DISTANCE_SCALE: f64 = 80.0;
@@ -101,22 +117,52 @@ const COVERAGE_OPEN_VALUE: f64 = 1.0;
 // ============================================================================
 
 /// Positional attractiveness of catching at `(x, y)`.
-/// High near the scoring end zone, falls off behind the disc.
+///
+/// Three independent multipliers are combined:
+///   1. **Position value** — how far the catch advances the disc toward the
+///      scoring end zone (capped to [SCALE, 1.0]).
+///   2. **Width (sideline) penalty** — cells near a sideline are worth less.
+///   3. **Short-pass penalty** — passes shorter than CATCH_MIN_PASS_DISTANCE_YARDS
+///      ramp from ≈0 up to 1.0 using a polynomial curve.
+///   4. **Backward-pass penalty** — the *same* polynomial curve used for the
+///      sideline penalty is applied along the throwback axis.  Catches more
+///      than CATCH_MAX_THROWBACK_YARDS behind the disc return 0.
 pub fn calculate_catch_value(x: f64, y: f64, disc: &Disc, field: &FieldDimensions) -> f64 {
     let scoring_end = field.end_zone_depth; // x ≤ this is inside the scoring end zone
 
     if x <= scoring_end {
         return CATCH_END_ZONE_VALUE;
     }
-    if x >= disc.x {
-        return 0.0; // behind the disc — no advancement
-    }
 
-    // Linear forward progress toward the end zone, shifted into [SCALE, 1]
+    // ── 1. Backward-pass penalty ────────────────────────────────────────────
+    // throwback: how many yards behind the disc the cell lies (0 when forward)
+    let throwback = (x - disc.x).max(0.0);
+    if throwback >= CATCH_MAX_THROWBACK_YARDS {
+        return 0.0; // too far behind — no value
+    }
+    // Same curve shape as the sideline penalty; t = 0 at disc, 1 at max throwback
+    let backward_factor = {
+        let t = throwback / CATCH_MAX_THROWBACK_YARDS;
+        1.0 - t * CATCH_SIDELINE_LINEAR_PENALTY
+            - CATCH_SIDELINE_STEEP_COEFF * t.powf(CATCH_SIDELINE_EXPONENT)
+    };
+
+    // ── 2. Short-pass penalty ────────────────────────────────────────────────
+    // Euclidean distance from the disc; ramps from 0 at 0 yds to 1 at MIN yds
+    let dx = x - disc.x;
+    let dy = y - disc.y;
+    let pass_dist = (dx * dx + dy * dy).sqrt();
+    let short_pass_factor = (pass_dist / CATCH_MIN_PASS_DISTANCE_YARDS)
+        .min(1.0)
+        .powf(CATCH_SHORT_PASS_EXPONENT);
+
+    // ── 3. Position value ───────────────────────────────────────────────────
+    // Forward progress toward the end zone, shifted into [SCALE, 1.0].
+    // Cells behind the disc (throwback > 0) clamp to 0 progress → minimum 0.5.
     let raw_progress = ((disc.x - x) / field.field_length).clamp(0.0, 1.0);
     let position_value = raw_progress * CATCH_POSITION_SCALE + CATCH_POSITION_SCALE;
 
-    // Width penalty: cells near a sideline are worth less
+    // ── 4. Width (sideline) penalty ─────────────────────────────────────────
     let field_center_y = field.field_width / 2.0;
     let dist_from_center = (y - field_center_y).abs();
     let outer_band_start = field_center_y - CATCH_SIDE_BOUNDARY_YARDS;
@@ -130,7 +176,7 @@ pub fn calculate_catch_value(x: f64, y: f64, disc: &Disc, field: &FieldDimension
         1.0
     };
 
-    (position_value * center_bonus).clamp(0.0, 1.0)
+    (position_value * center_bonus * backward_factor * short_pass_factor).clamp(0.0, 1.0)
 }
 
 /// Raw throw difficulty at `(x, y)` — purely a function of distance from the
@@ -197,8 +243,7 @@ pub fn calculate_marking_difficulty_at(
     let dx = target_x - disc.x;
     let dy = target_y - disc.y;
     let dist = (dx * dx + dy * dy).sqrt();
-    let distance_factor =
-        (1.0 - dist / (MARK_DISTANCE_SCALE * MARK_DISTANCE_STRENGTH)).max(0.0);
+    let distance_factor = (1.0 - dist / (MARK_DISTANCE_SCALE * MARK_DISTANCE_STRENGTH)).max(0.0);
     1.0 - (1.0 - ease) * distance_factor
 }
 
@@ -252,9 +297,8 @@ pub fn get_difficulty_layer(
     if max_difficulty > 0.0 {
         for x in 0..num_cells_x {
             for y in 0..num_cells_y {
-                values[x][y] =
-                    (values[x][y] / max_difficulty).max(DIFFICULTY_POST_NORM_MIN)
-                        / DIFFICULTY_POST_NORM_DIVISOR;
+                values[x][y] = (values[x][y] / max_difficulty).max(DIFFICULTY_POST_NORM_MIN)
+                    / DIFFICULTY_POST_NORM_DIVISOR;
             }
         }
     }
@@ -415,7 +459,11 @@ pub fn calculate_heat_map(
             let mut product = 1.0_f64;
             for layer in &layers {
                 let v = layer.values[x][y];
-                let v = if layer.key == "difficulty" { 1.0 - v } else { v };
+                let v = if layer.key == "difficulty" {
+                    1.0 - v
+                } else {
+                    v
+                };
                 product *= v;
             }
             values[x][y] = product;

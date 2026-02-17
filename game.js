@@ -75,9 +75,14 @@ class UltimateGame {
             id: 'offense_2', team: 1, x: 55, y: 15,
             color: '#ef4444', hasDisc: false, isDefender: false, isMark: false,
         });
-        // Downfield defender
+        // Downfield defender 1
         this.players.push({
             id: 'defender_2', team: 2, x: 55, y: 14,
+            color: '#3b82f6', hasDisc: false, isDefender: true, isMark: false,
+        });
+        // Downfield defender 2
+        this.players.push({
+            id: 'defender_3', team: 2, x: 65, y: 25,
             color: '#3b82f6', hasDisc: false, isDefender: true, isMark: false,
         });
     }
@@ -213,6 +218,22 @@ class UltimateGame {
             if (dx * dx + dy * dy <= r * r) return p;
         }
         return null;
+    }
+
+    addDefender() {
+        const count = this.players.filter(p => p.isDefender).length;
+        // Place each new defender in a slightly different spot so they're all visible
+        this.players.push({
+            id: `defender_${count + 1}`,
+            team: 2,
+            x: Math.max(25, this.disc.x - 10 - count * 5),
+            y: 10 + (count % 4) * 8, // spread across the width in groups of 4
+            color: '#3b82f6',
+            hasDisc: false,
+            isDefender: true,
+            isMark: false,
+        });
+        this._markStateDirty();
     }
 
     selectPlayer(player) { this.selectedPlayer = player; }

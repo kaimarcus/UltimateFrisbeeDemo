@@ -92,6 +92,11 @@ function setupEventListeners() {
         updateNormalizeButtonState();
     });
 
+    // Add a new defender to the field
+    document.getElementById('addDefenderBtn').addEventListener('click', () => {
+        game.addDefender();
+    });
+
     // Position defender: minimize combined heat map sum (async — calls Rust backend)
     document.getElementById('positionDefenderBtn').addEventListener('click', async () => {
         await game.positionDefenderOptimal();

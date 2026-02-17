@@ -5,8 +5,8 @@ use axum::Json;
 use crate::game::{position_defender_optimal, position_offender_optimal, position_offender_stack};
 use crate::heatmap::{calculate_heat_map, combined_heat_map_sum};
 use crate::models::{
-    HeatMapData, HeatMapRequest, HeatMapSumRequest, HeatMapSumResponse, PositionRequest,
-    PositionResponse,
+    HeatMapData, HeatMapRequest, HeatMapSumRequest, HeatMapSumResponse, PositionDefenderRequest,
+    PositionRequest, PositionResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -38,14 +38,15 @@ pub async fn heatmap_sum_handler(Json(req): Json<HeatMapSumRequest>) -> Json<Hea
 
 /// `POST /api/position-defender`
 ///
-/// Find the grid cell within 5 yards of the offender that minimises the
-/// combined heat-map sum and return it.  Returns `null` when the operation
-/// cannot be performed (no suitable defender / offender / thrower).
+/// Body must include `defenderLabel` (e.g. "1", "2").  Moves that defender to
+/// the cell within 5 yards of the offender with the same label that minimises
+/// the combined heat-map sum (other defenders' coverage is included).
+/// Returns `null` when no matching defender or offender exists.
 pub async fn position_defender_handler(
-    Json(req): Json<PositionRequest>,
+    Json(req): Json<PositionDefenderRequest>,
 ) -> Json<Option<PositionResponse>> {
     let mut gs = req.game_state;
-    let result = position_defender_optimal(&mut gs, req.grid_size);
+    let result = position_defender_optimal(&mut gs, req.grid_size, &req.defender_label);
     Json(result.map(|(x, y)| PositionResponse { x, y }))
 }
 

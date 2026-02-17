@@ -301,7 +301,7 @@ class UltimateField {
     }
     
     // Helper method to draw objects on the field
-    drawPlayer(x, y, color = '#ffffff', radius = 4) {
+    drawPlayer(x, y, color = '#ffffff', radius = 4, label = '') {
         const pos = this.fieldToCanvas(x, y);
         
         this.ctx.beginPath();
@@ -311,6 +311,14 @@ class UltimateField {
         this.ctx.strokeStyle = '#000000';
         this.ctx.lineWidth = 1;
         this.ctx.stroke();
+
+        if (label) {
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = `bold ${Math.max(6, radius * 1.4)}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(label, pos.x, pos.y);
+        }
     }
 
     drawPlayerSelectionRing(x, y, radiusPixels = 12) {

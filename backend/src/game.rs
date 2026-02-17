@@ -22,19 +22,28 @@ const DEFENDER_SEARCH_RADIUS_YARDS: f64 = 5.0;
 // AI positioning
 // ---------------------------------------------------------------------------
 
-/// Move the downfield defender to the field cell (within
-/// `DEFENDER_SEARCH_RADIUS_YARDS` of the offender) that minimises the
-/// pre-normalised combined heat-map sum.
+/// Move the defender with the given label to the field cell (within
+/// `DEFENDER_SEARCH_RADIUS_YARDS` of the offender with the same label) that
+/// minimises the pre-normalised combined heat-map sum.  All other defenders
+/// remain in place, so their coverage is included when evaluating positions.
 ///
-/// Returns the new `(x, y)` position, or `None` when there is no suitable
-/// defender or offender.
-pub fn position_defender_optimal(gs: &mut GameState, grid_size: f64) -> Option<(f64, f64)> {
+/// Returns the new `(x, y)` position, or `None` when there is no defender or
+/// offender with that label.
+pub fn position_defender_optimal(
+    gs: &mut GameState,
+    grid_size: f64,
+    defender_label: &str,
+) -> Option<(f64, f64)> {
     let (offender_x, offender_y) = {
-        let o = gs.players.iter().find(|p| !p.is_defender && !p.has_disc)?;
+        let o = gs.players.iter().find(|p| {
+            !p.is_defender && !p.has_disc && p.label.as_deref() == Some(defender_label)
+        })?;
         (o.x, o.y)
     };
 
-    let defender_idx = gs.players.iter().position(|p| p.is_defender && !p.is_mark)?;
+    let defender_idx = gs.players.iter().position(|p| {
+        p.is_defender && !p.is_mark && p.label.as_deref() == Some(defender_label)
+    })?;
 
     let field = gs.field.clone();
     let r2 = DEFENDER_SEARCH_RADIUS_YARDS * DEFENDER_SEARCH_RADIUS_YARDS;

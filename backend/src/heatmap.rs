@@ -81,7 +81,7 @@ const MARK_EASY_ANGLE_RADIANS: f64 = std::f64::consts::FRAC_PI_4;
 
 /// The mark is modelled as forcing the thrower toward this field position.
 /// Default (20, 40) points toward the back-left corner of the field.
-const MARK_FORCE_X: f64 = 60.0;
+const MARK_FORCE_X: f64 = 20.0;
 const MARK_FORCE_Y: f64 = 40.0;
 
 /// Distance (yards) at which the mark's angular difficulty reaches zero.

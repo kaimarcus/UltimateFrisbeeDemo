@@ -97,9 +97,13 @@ function setupEventListeners() {
         game.addDefender();
     });
 
-    // Position defender: minimize combined heat map sum (async — calls Rust backend)
-    document.getElementById('positionDefenderBtn').addEventListener('click', async () => {
-        await game.positionDefenderOptimal();
+    // Position defender 1 relative to offender 1
+    document.getElementById('positionDefender1Btn').addEventListener('click', async () => {
+        await game.positionDefenderOptimal('1');
+    });
+    // Position defender 2 relative to offender 2
+    document.getElementById('positionDefender2Btn').addEventListener('click', async () => {
+        await game.positionDefenderOptimal('2');
     });
 
     // Position offender: maximize combined heat map value (async — calls Rust backend)

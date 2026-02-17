@@ -65,24 +65,29 @@ class UltimateGame {
     }
 
     createExamplePlayers() {
-        // Thrower (has disc)
+        // Pair 1 — thrower (has disc)
         this.players.push({
-            id: 'offense_1', team: 1, x: 80, y: 15,
+            id: 'offense_1', team: 1, x: 80, y: 15, label: '1',
             color: '#ef4444', hasDisc: true, isDefender: false, isMark: false,
         });
-        // Downfield receiver
+        // Pair 1 — downfield receiver
         this.players.push({
-            id: 'offense_2', team: 1, x: 55, y: 15,
+            id: 'offense_2', team: 1, x: 55, y: 15, label: '1',
             color: '#ef4444', hasDisc: false, isDefender: false, isMark: false,
         });
-        // Downfield defender 1
+        // Pair 1 — downfield defender
         this.players.push({
-            id: 'defender_2', team: 2, x: 55, y: 14,
+            id: 'defender_2', team: 2, x: 55, y: 14, label: '1',
             color: '#3b82f6', hasDisc: false, isDefender: true, isMark: false,
         });
-        // Downfield defender 2
+        // Pair 2 — downfield receiver
         this.players.push({
-            id: 'defender_3', team: 2, x: 65, y: 25,
+            id: 'offense_3', team: 1, x: 45, y: 26, label: '2',
+            color: '#ef4444', hasDisc: false, isDefender: false, isMark: false,
+        });
+        // Pair 2 — downfield defender
+        this.players.push({
+            id: 'defender_3', team: 2, x: 46, y: 25, label: '2',
             color: '#3b82f6', hasDisc: false, isDefender: true, isMark: false,
         });
     }
@@ -112,6 +117,7 @@ class UltimateGame {
                 hasDisc:    p.hasDisc,
                 isDefender: p.isDefender,
                 isMark:     p.isMark,
+                label:      p.label ?? null,
             })),
             disc: {
                 x:        this.disc.x,
@@ -222,12 +228,14 @@ class UltimateGame {
 
     addDefender() {
         const count = this.players.filter(p => p.isDefender).length;
+        const label = String(count + 1);
         // Place each new defender in a slightly different spot so they're all visible
         this.players.push({
             id: `defender_${count + 1}`,
             team: 2,
             x: Math.max(25, this.disc.x - 10 - count * 5),
-            y: 10 + (count % 4) * 8, // spread across the width in groups of 4
+            y: 10 + (count % 4) * 8,
+            label,
             color: '#3b82f6',
             hasDisc: false,
             isDefender: true,
@@ -287,22 +295,26 @@ class UltimateGame {
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Ask the backend to find the optimal defender position and move the
-     * downfield defender there.
+     * Ask the backend to find the optimal position for the defender with the
+     * given label (relative to the offender with the same label).  Other
+     * defenders stay put; their coverage is included when evaluating.
      */
-    async positionDefenderOptimal() {
+    async positionDefenderOptimal(defenderLabel) {
         try {
             const res = await fetch(`${this.apiBase}/position-defender`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    gameState: this._toApiGameState(),
-                    gridSize:  this.heatMapGridSize,
+                    gameState:    this._toApiGameState(),
+                    gridSize:    this.heatMapGridSize,
+                    defenderLabel: String(defenderLabel),
                 }),
             });
             const data = await res.json();
             if (data) {
-                const defender = this.players.find(p => p.isDefender && !p.isMark);
+                const defender = this.players.find(
+                    p => p.isDefender && !p.isMark && p.label === String(defenderLabel)
+                );
                 if (defender) {
                     defender.x = data.x;
                     defender.y = data.y;
@@ -393,7 +405,7 @@ class UltimateGame {
         this.players.forEach(player => {
             const radius     = player.hasDisc ? 6 : 4;
             const isSelected = this.selectedPlayer === player;
-            this.field.drawPlayer(player.x, player.y, player.color, radius);
+            this.field.drawPlayer(player.x, player.y, player.color, radius, player.label || '');
             if (isSelected) {
                 this.field.drawPlayerSelectionRing(player.x, player.y, Math.max(radius + 4, 10));
             }

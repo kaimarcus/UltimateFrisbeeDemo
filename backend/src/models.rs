@@ -25,6 +25,9 @@ pub struct Player {
     pub has_disc: bool,
     pub is_defender: bool,
     pub is_mark: bool,
+    /// Optional label used to pair defender with offender (e.g. "1", "2").
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +101,16 @@ pub struct HeatMapSumResponse {
 pub struct PositionRequest {
     pub game_state: GameState,
     pub grid_size: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionDefenderRequest {
+    pub game_state: GameState,
+    pub grid_size: f64,
+    /// Label of the defender to position (e.g. "1", "2"); that defender is
+    /// positioned relative to the offender with the same label.
+    pub defender_label: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

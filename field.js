@@ -14,7 +14,9 @@ class UltimateField {
         this.fieldWidth = 40;   // Field width
         this.endZoneDepth = 20; // End zone depth
         this.totalLength = this.fieldLength + (this.endZoneDepth * 2); // 110 yards total
-        
+        this.sidelineWidth = 15; // Sideline strip to the left of the field (x < 0)
+        this.sidelineLeft = -this.sidelineWidth; // Left edge of coordinate system
+
         // Rendering options
         this.showGrid = options.showGrid !== undefined ? options.showGrid : true;
         this.scale = options.scale || 8; // pixels per yard
@@ -29,6 +31,8 @@ class UltimateField {
             endZone2: 'rgba(59, 130, 246, 0.2)',
             gridLines: 'rgba(255, 255, 255, 0.1)',
             brickMark: '#fbbf24',
+            sideline: 'rgba(100, 100, 100, 0.5)',
+            sidelineLine: 'rgba(255, 255, 255, 0.6)',
         };
         
         // Heat map settings
@@ -40,38 +44,41 @@ class UltimateField {
     }
     
     setupCanvas() {
-        const width = (this.totalLength * this.scale) + (this.padding * 2);
+        const totalYardsX = this.sidelineWidth + this.totalLength;
+        const width = (totalYardsX * this.scale) + (this.padding * 2);
         const height = (this.fieldWidth * this.scale) + (this.padding * 2);
-        
+
         this.canvas.width = width;
         this.canvas.height = height;
-        
+
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
     }
-    
-    // Convert field coordinates (yards) to canvas coordinates (pixels)
+
+    // Convert field coordinates (yards) to canvas coordinates (pixels).
+    // Field x runs from sidelineLeft (-sidelineWidth) to totalLength.
     fieldToCanvas(x, y) {
         return {
-            x: this.padding + (x * this.scale),
+            x: this.padding + (x - this.sidelineLeft) * this.scale,
             y: this.padding + (y * this.scale)
         };
     }
-    
-    // Convert canvas coordinates (pixels) to field coordinates (yards)
+
+    // Convert canvas coordinates (pixels) to field coordinates (yards).
     canvasToField(x, y) {
         return {
-            x: (x - this.padding) / this.scale,
+            x: this.sidelineLeft + (x - this.padding) / this.scale,
             y: (y - this.padding) / this.scale
         };
     }
     
     render() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
+
+        // Draw sideline area (left of field — players here are off the field for heat maps)
+        this.drawSideline();
         // Draw grass background
         this.drawGrass();
-        
         // Draw end zones
         this.drawEndZones();
         
@@ -94,16 +101,29 @@ class UltimateField {
         this.drawYardMarkers();
     }
     
+    drawSideline() {
+        const topLeft = this.fieldToCanvas(this.sidelineLeft, 0);
+        const bottomRight = this.fieldToCanvas(0, this.fieldWidth);
+        this.ctx.fillStyle = this.colors.sideline;
+        this.ctx.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+        this.ctx.strokeStyle = this.colors.sidelineLine;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(bottomRight.x, topLeft.y);
+        this.ctx.lineTo(bottomRight.x, bottomRight.y);
+        this.ctx.stroke();
+    }
+
     drawGrass() {
         const start = this.fieldToCanvas(0, 0);
         const end = this.fieldToCanvas(this.totalLength, this.fieldWidth);
-        
+
         // Create striped grass pattern
         const stripeWidth = 5 * this.scale;
         for (let x = 0; x < this.totalLength; x += 10) {
             const pos = this.fieldToCanvas(x, 0);
             const width = stripeWidth;
-            
+
             this.ctx.fillStyle = x % 20 === 0 ? this.colors.grass : this.colors.grassDark;
             this.ctx.fillRect(pos.x, start.y, width, end.y - start.y);
         }

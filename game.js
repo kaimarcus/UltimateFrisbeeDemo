@@ -248,7 +248,8 @@ class UltimateGame {
     clearSelection()      { this.selectedPlayer = null; }
 
     movePlayerTo(player, fieldX, fieldY) {
-        player.x = Math.max(0, Math.min(this.field.totalLength, fieldX));
+        const xMin = this.field.sidelineLeft ?? 0;
+        player.x = Math.max(xMin, Math.min(this.field.totalLength, fieldX));
         player.y = Math.max(0, Math.min(this.field.fieldWidth,  fieldY));
         if (player.hasDisc && this.disc.holder === player) {
             this.disc.x = player.x;
@@ -358,31 +359,24 @@ class UltimateGame {
     }
 
     /**
-     * Ask the backend to compute the stack position (centre-width, 20 yards
-     * downfield from disc) and move the offender there.
+     * Move both offenders to stack positions relative to the disc:
+     * Offender 1: 20 yards left (downfield), 7 yards down.
+     * Offender 2: 20 yards left (downfield), 7 yards up.
      */
-    async positionOffenderStack() {
-        try {
-            const res = await fetch(`${this.apiBase}/position-stack`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    gameState: this._toApiGameState(),
-                    gridSize:  this.heatMapGridSize,
-                }),
-            });
-            const data = await res.json();
-            if (data) {
-                const offender = this.players.find(p => !p.isDefender && !p.hasDisc);
-                if (offender) {
-                    offender.x = data.x;
-                    offender.y = data.y;
-                    this._markStateDirty();
-                }
-            }
-        } catch (err) {
-            console.warn('[backend] positionStack failed:', err.message);
+    positionOffenderStack() {
+        const x = Math.max(0, Math.min(this.field.totalLength, this.disc.x - 20));
+        const w = this.field.fieldWidth;
+        const o1 = this.players.find(p => !p.isDefender && !p.hasDisc && p.label === '1');
+        const o2 = this.players.find(p => !p.isDefender && !p.hasDisc && p.label === '2');
+        if (o1) {
+            o1.x = x;
+            o1.y = Math.max(0, Math.min(w, this.disc.y + 7));
         }
+        if (o2) {
+            o2.x = x;
+            o2.y = Math.max(0, Math.min(w, this.disc.y - 7));
+        }
+        this._markStateDirty();
     }
 
     // ═══════════════════════════════════════════════════════════════════════

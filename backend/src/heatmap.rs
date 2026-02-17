@@ -93,6 +93,14 @@ const MARK_DISTANCE_SCALE: f64 = 60.0;
 const MARK_DISTANCE_STRENGTH: f64 = 3.0;
 
 // ============================================================================
+// SIDELINE
+// Players with x < this value are "off the field" and excluded from all
+// heat-map layers (coverage, marking thrower, etc.).
+// ============================================================================
+
+const SIDELINE_X_MIN: f64 = 0.0; // players with x < 0 are in the sideline area
+
+// ============================================================================
 // COVERAGE LAYER CONSTANTS
 // Is the area around a spot open (offense near) or covered (defender near)?
 // ============================================================================
@@ -306,8 +314,8 @@ pub fn get_difficulty_layer(
 }
 
 /// Marking-difficulty layer: `values[x][y]` in [0, 1].
-/// Returns `None` when no player currently holds the disc.
-/// Also returns the thrower's field coordinates for downstream use.
+/// Returns `None` when no player currently holds the disc or when the
+/// thrower is in the sideline (off the field).
 pub fn get_marking_difficulty_layer(
     num_cells_x: usize,
     num_cells_y: usize,
@@ -316,6 +324,9 @@ pub fn get_marking_difficulty_layer(
     disc: &Disc,
 ) -> Option<(Vec<Vec<f64>>, f64, f64)> {
     let thrower = players.iter().find(|p| p.has_disc)?;
+    if thrower.x < SIDELINE_X_MIN {
+        return None; // thrower in sideline — not on field
+    }
     let (tx, ty) = (thrower.x, thrower.y);
 
     let mut values = vec![vec![0.0_f64; num_cells_y]; num_cells_x];
@@ -331,7 +342,8 @@ pub fn get_marking_difficulty_layer(
 
 /// Coverage layer: `values[x][y]` in {0.0, 0.5, 1.0}.
 /// Excludes the disc-holder (thrower) and the mark from both sides so the
-/// layer reflects downfield open/covered areas only.
+/// layer reflects downfield open/covered areas only.  Players in the
+/// sideline (x < SIDELINE_X_MIN) are excluded and do not affect coverage.
 pub fn get_coverage_layer(
     num_cells_x: usize,
     num_cells_y: usize,
@@ -341,11 +353,11 @@ pub fn get_coverage_layer(
 ) -> Vec<Vec<f64>> {
     let offense: Vec<&Player> = players
         .iter()
-        .filter(|p| !p.is_defender && !p.has_disc)
+        .filter(|p| !p.is_defender && !p.has_disc && p.x >= SIDELINE_X_MIN)
         .collect();
     let defense: Vec<&Player> = players
         .iter()
-        .filter(|p| p.is_defender && !p.is_mark)
+        .filter(|p| p.is_defender && !p.is_mark && p.x >= SIDELINE_X_MIN)
         .collect();
 
     let mut values = vec![vec![0.0_f64; num_cells_y]; num_cells_x];

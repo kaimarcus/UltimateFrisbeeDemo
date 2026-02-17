@@ -115,9 +115,9 @@ function setupEventListeners() {
         await game.positionOffenderOptimal('2');
     });
 
-    // Go to stack: move offender to middle of field, 20 yards downfield from disc
-    document.getElementById('goToStackBtn').addEventListener('click', async () => {
-        await game.positionOffenderStack();
+    // Go to stack: offender 1 = 20 yd left, 7 yd down; offender 2 = 20 yd left, 7 yd up
+    document.getElementById('goToStackBtn').addEventListener('click', () => {
+        game.positionOffenderStack();
     });
 
     // Canvas click: select player or place selected player
